@@ -27,3 +27,12 @@ class Log(beam.DoFn):
     def process(self, item, **kwargs):
         _logger.info(item)
         yield item
+
+
+@beam.typehints.with_input_types(item=int)
+@beam.typehints.with_output_types(int)
+class FailOnFive(beam.DoFn):
+    def process(self, item, **kwargs):
+        if item == 5:
+            raise ValueError("I hate 5!")
+        yield item

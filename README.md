@@ -3,7 +3,7 @@
 To run various experiments using the direct runner:
 ```bash
 source venv/bin/activate
-python rillbeam/experiments.py
+python -m rillbeam.experiments
 ```
 
 ## Flink Runner
@@ -23,7 +23,7 @@ Then:
 
 ```bash
 source venv/bin/activate
-python -m rillbeam.experiments --runner=PortableRunner --job_endpoint=localhost:8099 --setup_file ./setup.py
+python -m rillbeam.experiments --filter flowbased --runner=PortableRunner --job_endpoint=localhost:8099 --setup_file ./setup.py
 ```
 
 Note: if using a single node flink cluster, you must increase the number of 
@@ -33,4 +33,11 @@ task slots per manager in `conf/flink-conf.yaml` in order to run these examples:
 # The number of task slots that each TaskManager offers. Each slot runs one parallel pipeline.
 
 taskmanager.numberOfTaskSlots: 8
+```
+
+## GCP Dataflow Runner
+
+```bash
+source venv/bin/activate
+python -m rillbeam.experiments --filter flowbased --runner DataflowRunner --project dataflow-241218 --temp_location gs://dataflow-241218/temp --setup_file ./setup.py
 ```
