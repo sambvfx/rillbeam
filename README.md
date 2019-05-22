@@ -6,9 +6,11 @@ source venv/bin/activate
 python rillbeam/experiments.py
 ```
 
-# Flink Runner
+## Flink Runner
 
-To send work to flink, first read [this issue](https://issues.apache.org/jira/browse/BEAM-7379)
+As of this writing, apache_beam 2.12 is compatible with flink 1.7.
+
+To send work to flink, first read [this issue](https://issues.apache.org/jira/browse/BEAM-7379).
 
 Alternately, if homebrew is not your style, try the docker flink services:
 ```bash
@@ -25,7 +27,7 @@ python -m rillbeam.experiments --runner=PortableRunner --job_endpoint=localhost:
 ```
 
 Note: if using a single node flink cluster, you must increase the number of 
-task slots per manager in `conf/flink-conf.yaml` to run these examples:
+task slots per manager in `conf/flink-conf.yaml` in order to run these examples:
 
 ```yaml
 # The number of task slots that each TaskManager offers. Each slot runs one parallel pipeline.
