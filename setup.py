@@ -49,7 +49,10 @@ setup(
     long_description=read('README.md'),
     author='Sam Bourne',
     packages=find_packages(),
-    install_requires=requirements(),
+    # FIXME: including requirements causes flink to fail with:
+    #  Received exit code 1 for command 'docker inspect -f {{.State.Running}} <uuid>'. stderr: Error: No such object: <uuid>
+    # install_requires=requirements(),
+    install_requires=[],
     extras_require={
         'tests': [
             'pytest',
