@@ -133,14 +133,17 @@ class Sync(beam.PTransform):
         # Tracks the current index per-pcoll.
         _position = {i: 0 for i in range(len(pcolls))}
 
-        def _keymap(item, icoll):
-            idx = _position[icoll]
-            _position[icoll] += 1
+        def _keymap(item, idx_coll):
+            idx = _position[idx_coll]
+            _position[idx_coll] += 1
             return idx, item
 
         return (
             [pcoll | 'coll{}'.format(i) >> beam.Map(_keymap, i)
              for i, pcoll in enumerate(pcolls)]
+            # Passing self.pipeline here is copying what's done in CoGroupByKey
+            # Which is the only other multi-pcollection transform I had to
+            # model this after.
             | beam.Flatten(pipeline=self.pipeline)
             # I think we may need a custom trigger that fires once we have an
             # element from each collection.
@@ -149,7 +152,6 @@ class Sync(beam.PTransform):
                   trigger=trigger.Repeatedly(trigger.AfterCount(2)),
                   accumulation_mode=trigger.AccumulationMode.DISCARDING
               )
-            # This could be named "GroupByKeyAndWindow"
-            | beam.CoGroupByKey()
+            | beam.GroupByKey()
             | beam.Values()
         )
