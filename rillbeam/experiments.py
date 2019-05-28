@@ -1,9 +1,13 @@
+from __future__ import absolute_import
+
 import argparse
 import logging
 
 import apache_beam as beam
+from apache_beam import pvalue
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import SetupOptions
+from apache_beam.options.pipeline_options import StandardOptions
 import apache_beam.transforms.trigger as trigger
 import apache_beam.transforms.window as window
 
@@ -28,33 +32,54 @@ def test_flowbased(argv):
 
 
 def test_synced(argv):
-    # FIXME: The intention of this test is to see "SyncLog" messages before the
-    #  entire packet stream(s) have been consumed.
+    import time
     from rillbeam.components import Log, SleepFn, Sync
 
     pipeline_options = PipelineOptions(argv)
     pipeline_options.view_as(SetupOptions).save_main_session = True
+    pipeline_options.view_as(StandardOptions).streaming = True
     pipe = beam.Pipeline(options=pipeline_options)
+
+    class CopyFn(beam.DoFn):
+        def process(self, element):
+            yield pvalue.TaggedOutput('out1', element)
+            yield pvalue.TaggedOutput('out2', element)
+
+    class SlowStr(beam.DoFn):
+        def process(self, element, duration=0.5, variation=None, **kwargs):
+            import time
+            import random
+            if variation:
+                duration += random.uniform(*variation)
+            time.sleep(duration)
+            yield str(element)
 
     graph = (
         pipe
-        | beam.Create([(k, k) for k in range(10)])
-        | 'Timestamp' >> beam.Map(lambda x_t: window.TimestampedValue(x_t[0], x_t[1]))
+        | beam.Create(range(500))
+        | beam.ParDo(CopyFn()).with_outputs()
     )
 
-    stream_branch = (
-        graph | 'LogStream' >> Log()
+    b1 = (
+        graph.out1
+        | 'Map1' >> beam.Map(lambda x: window.TimestampedValue(x, time.time()))
+        | 'Window1' >> beam.WindowInto(window.FixedWindows(5))
+        | 'Log1' >> Log()
     )
 
-    window_branch = (
-        graph
-        | 'Sleep' >> beam.ParDo(SleepFn(), 0.1)
-        | 'LogWindow' >> Log()
+    b2 = (
+        graph.out2
+        | '"Process"' >> beam.ParDo(SlowStr(), duration=0.1, variation=(0.0, 1.1))
+        | 'Map2' >> beam.Map(lambda x: window.TimestampedValue(x, time.time()))
+        | 'Window2' >> beam.WindowInto(window.FixedWindows(5))
+        | 'Log2' >> Log()
     )
 
-    ((stream_branch, window_branch)
-     | 'Sync' >> Sync()
-     | 'SyncedLog' >> Log())
+    synced = (
+        (b1, b2)
+        | Sync()
+        | 'Success' >> Log()
+    )
 
     result = pipe.run()
     result.wait_until_finish()
@@ -114,6 +139,94 @@ def test_fail(argv):
         | 'Sleep' >> beam.ParDo(SleepFn(), duration=1.0)
         | 'Log' >> Log()
         | 'Fail' >> beam.ParDo(FailOnFive())
+    )
+
+    result = pipe.run()
+    result.wait_until_finish()
+
+
+def test_pubsub(argv):
+    """
+    After starting this, from another shell insert some pubsub messages:
+
+        $ gcloud pubsub topics publish projects/dataflow-241218/topics/rillbeam-inflow --message "$(< _data/HarryPotter.txt)"
+
+    Then you should see some movement in this beam graph. After it finishes
+    you can confirm that it wrote into the output topic by running:
+
+        $ gcloud pubsub subscriptions pull projects/dataflow-241218/subscriptions/manual --auto-ack --limit 100000
+    """
+    import os
+    import re
+
+    from apache_beam.metrics import Metrics
+    from rillbeam.components import Log
+
+    if os.environ.get('GOOGLE_APPLICATION_CREDENTIALS') is None:
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/samb/projects/luma/.cred/dataflow-d3c95049758e.json'
+
+    INPUT_TOPIC = 'projects/dataflow-241218/topics/rillbeam-inflow'
+    OUTPUT_TOPIC = 'projects/dataflow-241218/topics/rillbeam-outflow'
+
+    pipeline_options = PipelineOptions(argv)
+    pipeline_options.view_as(SetupOptions).save_main_session = True
+    pipeline_options.view_as(StandardOptions).streaming = True
+    pipe = beam.Pipeline(options=pipeline_options)
+
+    class WordExtractingDoFn(beam.DoFn):
+        """Parse each line of input text into words."""
+
+        def __init__(self):
+            self.words_counter = Metrics.counter(self.__class__, 'words')
+            self.word_lengths_counter = Metrics.counter(self.__class__,
+                                                        'word_lengths')
+            self.word_lengths_dist = Metrics.distribution(
+                self.__class__, 'word_len_dist')
+            self.empty_line_counter = Metrics.counter(self.__class__,
+                                                      'empty_lines')
+
+        def process(self, element):
+            """Returns an iterator over the words of this element.
+
+            The element is a line of text.  If the line is blank, note that, too.
+
+            Args:
+              element: the element being processed
+
+            Returns:
+              The processed element.
+            """
+            text_line = element.strip()
+            if not text_line:
+                self.empty_line_counter.inc(1)
+            words = re.findall(r'[\w\']+', text_line, re.UNICODE)
+            for w in words:
+                self.words_counter.inc()
+                self.word_lengths_counter.inc(len(w))
+                self.word_lengths_dist.update(len(w))
+            return words
+
+    def count_ones(word_ones):
+        (word, ones) = word_ones
+        return (word, sum(ones))
+
+    def format_result(word_count):
+        (word, count) = word_count
+        return bytes('%s: %d' % (word, count))
+
+    (
+        pipe
+        | 'PubSubInflow' >> beam.io.ReadFromPubSub(topic=INPUT_TOPIC)
+        | 'Decode' >> beam.Map(lambda x: x.decode('utf-8'))
+        | 'Split' >> (beam.ParDo(WordExtractingDoFn())
+                      .with_output_types(unicode))
+        | 'PairWithOne' >> beam.Map(lambda x: (x, 1))
+        | 'Window' >> beam.WindowInto(window.FixedWindows(5, 0))
+        | 'GroupByKey' >> beam.GroupByKey()
+        | 'CountOnes' >> beam.Map(count_ones)
+        | 'Format' >> beam.Map(format_result)
+        | 'Log' >> Log()
+        | 'PubSubOutflow' >> beam.io.WriteToPubSub(OUTPUT_TOPIC)
     )
 
     result = pipe.run()

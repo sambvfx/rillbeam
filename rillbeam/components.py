@@ -13,11 +13,15 @@ from apache_beam.typehints import *
 T = TypeVariable('T')
 
 
-@beam.typehints.with_input_types(element=T, duration=float)
+@beam.typehints.with_input_types(element=T, duration=float,
+                                 variation=Optional[Tuple[float, float]])
 @beam.typehints.with_output_types(T)
 class SleepFn(beam.DoFn):
-    def process(self, element, duration=0.5, **kwargs):
+    def process(self, element, duration=0.5, variation=None, **kwargs):
         import time
+        import random
+        if variation:
+            duration += random.uniform(*variation)
         time.sleep(duration)
         yield element
 
@@ -34,34 +38,20 @@ class FailOnFive(beam.DoFn):
 @beam.typehints.with_input_types(element=T)
 @beam.typehints.with_output_types(T)
 class LogFn(beam.DoFn):
-    def process(self, element, name=None, **kwargs):
+    def process(self, element, name=None, repr=True, **kwargs):
         if name is None:
             name = self.default_label()
         _logger = logging.getLogger(name)
         _logger.setLevel(logging.DEBUG)
-        if isinstance(element, window.TimestampedValue):
-            element = element.value
-        _logger.info(element)
+        if repr:
+            _logger.info('{!r}'.format(element))
+        else:
+            _logger.info(element)
         yield element
 
 
 class Log(beam.PTransform):
-    def __init__(self, **kwargs):
-        self._eager = kwargs.pop('eager', False)
-        super(Log, self).__init__(**kwargs)
-
     def expand(self, pcoll):
-        if self._eager:
-            pcoll = (
-                pcoll
-                | beam.WindowInto(
-                      window.FixedWindows(0.1),
-                      trigger=trigger.AfterWatermark(
-                          late=trigger.AfterCount(1)),
-                      accumulation_mode=trigger.AccumulationMode.DISCARDING
-                )
-            )
-
         return (
             pcoll
             | beam.ParDo(LogFn(), name=self.label)
@@ -148,7 +138,7 @@ class Sync(beam.PTransform):
             # I think we may need a custom trigger that fires once we have an
             # element from each collection.
             | beam.WindowInto(
-                  window.GlobalWindows(),
+                  window.FixedWindows(10),
                   trigger=trigger.Repeatedly(trigger.AfterCount(2)),
                   accumulation_mode=trigger.AccumulationMode.DISCARDING
               )
