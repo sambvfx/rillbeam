@@ -33,19 +33,18 @@ def test_flowbased(argv):
 
 def test_synced(argv):
     import time
-    from rillbeam.components import Log, SleepFn, Sync
+    from rillbeam.components import Log, Sync
 
     pipeline_options = PipelineOptions(argv)
     pipeline_options.view_as(SetupOptions).save_main_session = True
     pipeline_options.view_as(StandardOptions).streaming = True
     pipe = beam.Pipeline(options=pipeline_options)
 
-    class CopyFn(beam.DoFn):
-        def process(self, element):
-            yield pvalue.TaggedOutput('out1', element)
-            yield pvalue.TaggedOutput('out2', element)
-
     class SlowStr(beam.DoFn):
+        """
+        Test component thata cast to a string slowly... Emulates something
+        that takes a small variable amount of processing time.
+        """
         def process(self, element, duration=0.5, variation=None, **kwargs):
             import time
             import random
@@ -57,18 +56,17 @@ def test_synced(argv):
     graph = (
         pipe
         | beam.Create(range(500))
-        | beam.ParDo(CopyFn()).with_outputs()
     )
 
     b1 = (
-        graph.out1
+        graph
         | 'Map1' >> beam.Map(lambda x: window.TimestampedValue(x, time.time()))
         | 'Window1' >> beam.WindowInto(window.FixedWindows(5))
         | 'Log1' >> Log()
     )
 
     b2 = (
-        graph.out2
+        graph
         | '"Process"' >> beam.ParDo(SlowStr(), duration=0.1, variation=(0.0, 1.1))
         | 'Map2' >> beam.Map(lambda x: window.TimestampedValue(x, time.time()))
         | 'Window2' >> beam.WindowInto(window.FixedWindows(5))
@@ -177,24 +175,21 @@ def test_pubsub(argv):
         """Parse each line of input text into words."""
 
         def __init__(self):
-            self.words_counter = Metrics.counter(self.__class__, 'words')
-            self.word_lengths_counter = Metrics.counter(self.__class__,
-                                                        'word_lengths')
+            self.words_counter = Metrics.counter(
+                self.__class__, 'words')
+            self.word_lengths_counter = Metrics.counter(
+                self.__class__, 'word_lengths')
             self.word_lengths_dist = Metrics.distribution(
                 self.__class__, 'word_len_dist')
-            self.empty_line_counter = Metrics.counter(self.__class__,
-                                                      'empty_lines')
+            self.empty_line_counter = Metrics.counter(
+                self.__class__, 'empty_lines')
 
         def process(self, element):
-            """Returns an iterator over the words of this element.
+            """
+            Returns an iterator over the words of this element.
 
-            The element is a line of text.  If the line is blank, note that, too.
-
-            Args:
-              element: the element being processed
-
-            Returns:
-              The processed element.
+            The element is a line of text.  If the line is blank, note that,
+            too.
             """
             text_line = element.strip()
             if not text_line:
@@ -208,11 +203,11 @@ def test_pubsub(argv):
 
     def count_ones(word_ones):
         (word, ones) = word_ones
-        return (word, sum(ones))
+        return word, sum(ones)
 
     def format_result(word_count):
         (word, count) = word_count
-        return bytes('%s: %d' % (word, count))
+        return '%s: %d' % (word, count)
 
     (
         pipe
@@ -226,6 +221,7 @@ def test_pubsub(argv):
         | 'CountOnes' >> beam.Map(count_ones)
         | 'Format' >> beam.Map(format_result)
         | 'Log' >> Log()
+        | 'ToBytes' >> beam.Map(lambda x: bytes(x))
         | 'PubSubOutflow' >> beam.io.WriteToPubSub(OUTPUT_TOPIC)
     )
 
