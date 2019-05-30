@@ -6,7 +6,7 @@ import apache_beam as beam
 from apache_beam import pvalue
 import apache_beam.transforms.window as window
 import apache_beam.transforms.trigger as trigger
-
+import apache_beam.utils.timestamp as timestamp
 from apache_beam.typehints import *
 
 
@@ -38,15 +38,23 @@ class FailOnFive(beam.DoFn):
 @beam.typehints.with_input_types(element=T)
 @beam.typehints.with_output_types(T)
 class LogFn(beam.DoFn):
-    def process(self, element, name=None, repr=True, **kwargs):
+    def process(self, element, window=beam.DoFn.WindowParam, name=None, repr=True, **kwargs):
         if name is None:
             name = self.default_label()
+
         _logger = logging.getLogger(name)
         _logger.setLevel(logging.DEBUG)
+
+        try:
+            window_end = window.end.to_utc_datetime()
+        except OverflowError:
+            window_end = str(int(window.end))
+
+
         if repr:
-            _logger.info('{!r}'.format(element))
+            _logger.info('{!r} {}'.format(element, window_end))
         else:
-            _logger.info(element)
+            _logger.info('{} {}'.format(element, window_end))
         yield element
 
 
