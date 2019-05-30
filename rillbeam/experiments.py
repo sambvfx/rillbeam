@@ -247,4 +247,4 @@ if __name__ == '__main__':
         print '-' * 80
         print name
         print '-' * 80
-        func(pipeline_args)
+        func(pipeline_args + ['--job_name', name.replace('_', '-')])
