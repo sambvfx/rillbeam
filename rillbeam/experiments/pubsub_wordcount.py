@@ -3,7 +3,6 @@ Test pubsub graph.
 """
 import re
 import time
-import functools
 
 from termcolor import cprint
 
@@ -13,10 +12,8 @@ from apache_beam.runners.runner import PipelineState
 from apache_beam.metrics import Metrics
 
 from apache_beam.runners.runner import PipelineResult
-from google.cloud import pubsub_v1
-from google.cloud.pubsub_v1.subscriber.message import Message
 
-from rillbeam import tapp
+from rillbeam.helpers import pubsub_interface
 
 
 # Google pubsub topics and subscriptions
@@ -58,56 +55,6 @@ class WordExtractingDoFn(beam.DoFn):
         return words
 
 
-def interface():
-
-    def callback(pane, message):
-        # type: (tapp.Pane, Message) -> None
-        message.ack()
-        with pane.batch:
-            pane.write('{} : {}'.format(
-                message.publish_time, message.data.decode()), 'cyan')
-
-    subscriber = pubsub_v1.SubscriberClient()
-    publisher = pubsub_v1.PublisherClient()
-
-    with tapp.App() as app:
-        app.write('Beginning interactive pubsub session.', 'yellow',
-                  attrs=['bold'])
-        app.write()
-        app.write('Subscriber {!r}...'.format(SUBSCRIPTION_PATH),
-                  'yellow')
-        app.write('Publisher {!r}...'.format(SUBSCRIPTION_PATH),
-                  'yellow')
-        app.write()
-
-        app.write('Send words to pubsub to be counted. Messages will print '
-                  'when they are received.', 'green')
-        app.write('Type \'exit\' to stop.', 'green',
-                  attrs=['bold'])
-        app.write()
-
-        streampane = app.pane(40, 80, app.line + 2, 0)
-
-        future = subscriber.subscribe(
-            SUBSCRIPTION_PATH,
-            callback=functools.partial(callback, streampane))
-
-        try:
-            while True:
-                try:
-                    msg = app.prompt()
-                except KeyboardInterrupt:
-                    continue
-                if not msg:
-                    continue
-                elif msg.lower() == 'exit':
-                    break
-                else:
-                    publisher.publish(INPUT_TOPIC, data=msg)
-        finally:
-            future.cancel()
-
-
 def main(options):
 
     def count_ones(word_ones):
@@ -143,7 +90,7 @@ def main(options):
         time.sleep(10)
 
     try:
-        interface()
+        pubsub_interface(SUBSCRIPTION_PATH, INPUT_TOPIC)
     finally:
         print
         cprint('Shutting down pipeline...', 'yellow', attrs=['bold'])

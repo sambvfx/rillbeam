@@ -46,3 +46,57 @@ def get_options(pipeline_args, *args, **kwargs):
             pipeline_args.append(arg)
 
     return PipelineOptions(pipeline_args)
+
+
+def pubsub_interface(subscription_path, input_topic):
+    import functools
+    from google.cloud import pubsub_v1
+    from google.cloud.pubsub_v1.subscriber.message import Message
+    from rillbeam import tapp
+
+    def callback(pane, message):
+        # type: (tapp.Pane, Message) -> None
+        message.ack()
+        with pane.batch:
+            pane.write('{} : {}'.format(
+                message.publish_time, message.data.decode()), 'cyan')
+
+    subscriber = pubsub_v1.SubscriberClient()
+    publisher = pubsub_v1.PublisherClient()
+
+    with tapp.App() as app:
+        app.write('Beginning interactive pubsub session.', 'yellow',
+                  attrs=['bold'])
+        app.write()
+        app.write('Subscriber {!r}...'.format(subscription_path),
+                  'yellow')
+        app.write('Publisher {!r}...'.format(subscription_path),
+                  'yellow')
+        app.write()
+
+        app.write('Send words to pubsub to be counted. Messages will print '
+                  'when they are received.', 'green')
+        app.write('Type \'exit\' to stop.', 'green',
+                  attrs=['bold'])
+        app.write()
+
+        streampane = app.pane(40, 80, app.line + 2, 0)
+
+        future = subscriber.subscribe(
+            subscription_path,
+            callback=functools.partial(callback, streampane))
+
+        try:
+            while True:
+                try:
+                    msg = app.prompt()
+                except KeyboardInterrupt:
+                    continue
+                if not msg:
+                    continue
+                elif msg.lower() == 'exit':
+                    break
+                else:
+                    publisher.publish(input_topic, data=msg)
+        finally:
+            future.cancel()
