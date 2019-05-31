@@ -15,8 +15,7 @@
 # limitations under the License.
 #
 
-"""
-First in a series of four pipelines that tell a story in a 'gaming' domain.
+"""First in a series of four pipelines that tell a story in a 'gaming' domain.
 Concepts: batch processing; reading input from Google Cloud Storage or a from a
 local text file, and writing output to a text file; using standalone DoFns; use
 of the CombinePerKey transform.
@@ -57,119 +56,122 @@ python user_score.py \
 from __future__ import absolute_import
 from __future__ import division
 
+import argparse
 import csv
 import logging
 
 import apache_beam as beam
 from apache_beam.metrics.metric import Metrics
-
-from rillbeam.transforms import Log
+from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.options.pipeline_options import SetupOptions
 
 
 class ParseGameEventFn(beam.DoFn):
-    """
-    Parses the raw game event info into a Python dictionary.
+  """Parses the raw game event info into a Python dictionary.
 
-    Each event line has the following format:
-      username,teamname,score,timestamp_in_ms,readable_time
+  Each event line has the following format:
+    username,teamname,score,timestamp_in_ms,readable_time
 
-    e.g.:
-      user2_AsparagusPig,AsparagusPig,10,1445230923951,2015-11-02 09:09:28.224
+  e.g.:
+    user2_AsparagusPig,AsparagusPig,10,1445230923951,2015-11-02 09:09:28.224
 
-    The human-readable time string is not used here.
-    """
-    def __init__(self):
-        super(ParseGameEventFn, self).__init__()
-        self.num_parse_errors = Metrics.counter(self.__class__, 'num_parse_errors')
+  The human-readable time string is not used here.
+  """
+  def __init__(self):
+    super(ParseGameEventFn, self).__init__()
+    self.num_parse_errors = Metrics.counter(self.__class__, 'num_parse_errors')
 
-    def process(self, elem):
-        try:
-            row = list(csv.reader([elem]))[0]
-            yield {
-              'user': row[0],
-              'team': row[1],
-              'score': int(row[2]),
-              'timestamp': int(row[3]) /1000.0,
-            }
-        except:  # pylint: disable=bare-except
-            # Log and count parse errors
-            self.num_parse_errors.inc()
-            logging.error('Parse error on "%s"', elem)
+  def process(self, elem):
+    try:
+      row = list(csv.reader([elem]))[0]
+      yield {
+          'user': row[0],
+          'team': row[1],
+          'score': int(row[2]),
+          'timestamp': int(row[3]) /1000.0,
+      }
+    except:  # pylint: disable=bare-except
+      # Log and count parse errors
+      self.num_parse_errors.inc()
+      logging.error('Parse error on "%s"', elem)
 
 
+# [START extract_and_sum_score]
 class ExtractAndSumScore(beam.PTransform):
-    """
-    A transform to extract key/score information and sum the scores.
-    The constructor argument `field` determines whether 'team' or 'user' info is
-    extracted.
-    """
-    def __init__(self, field):
-        super(ExtractAndSumScore, self).__init__()
-        self.field = field
+  """A transform to extract key/score information and sum the scores.
+  The constructor argument `field` determines whether 'team' or 'user' info is
+  extracted.
+  """
+  def __init__(self, field):
+    super(ExtractAndSumScore, self).__init__()
+    self.field = field
 
-    def expand(self, pcoll):
-        return (
-            pcoll
+  def expand(self, pcoll):
+    from rillbeam.components import Log
+    from rillbeam.window import CustomWindow
+
+    return (pcoll
             | beam.Map(lambda elem: (elem[self.field], elem['score']))
             | 'WindowIntoSessions' >> beam.WindowInto(
-                beam.window.Sessions(2 * 60 * 60),
+                CustomWindow(2 * 60 * 60),
                 timestamp_combiner=beam.window.TimestampCombiner.OUTPUT_AT_EOW
             )
-            | 'Log' >> Log()
+            | 'PreLog' >> Log()
             | 'GroupByKey' >> beam.GroupByKey()
-        )
+            | 'PostLog' >> Log()
+            )
+
+# [END extract_and_sum_score]
 
 
 class UserScore(beam.PTransform):
-    def expand(self, pcoll):
-        return (
-            pcoll
-            | 'ParseGameEventFn' >> beam.ParDo(ParseGameEventFn())
-            | 'AddEventTimestamps' >> beam.Map(
-                lambda elem: beam.window.TimestampedValue(elem, elem['timestamp']))
-            # Extract and sum username/score pairs from the event data.
-            | 'ExtractAndSumScore' >> ExtractAndSumScore('user')
-        )
+  def expand(self, pcoll):
+    return (
+        pcoll
+        | 'ParseGameEventFn' >> beam.ParDo(ParseGameEventFn())
+        | 'AddEventTimestamps' >> beam.Map(
+            lambda elem: beam.window.TimestampedValue(elem, elem['timestamp']))
+        # Extract and sum username/score pairs from the event data.
+        | 'ExtractAndSumScore' >> ExtractAndSumScore('user'))
 
 
-def main(args, options):
+# [START main]
+def run(argv=None):
+  """Main entry point; defines and runs the user_score pipeline."""
+  parser = argparse.ArgumentParser()
 
+  # The default maps to two large Google Cloud Storage files (each ~12GB)
+  # holding two subsequent day's worth (roughly) of data.
+  parser.add_argument('--input',
+                      type=str,
+                      default='gs://apache-beam-samples/game/gaming_data*.csv',
+                      help='Path to the data file(s) containing game data.')
+  parser.add_argument('--output',
+                      type=str,
+                      required=True,
+                      help='Path to the output file(s).')
+
+  args, pipeline_args = parser.parse_known_args(argv)
+
+  options = PipelineOptions(pipeline_args)
+
+  # We use the save_main_session option because one or more DoFn's in this
+  # workflow rely on global context (e.g., a module imported at module level).
+  options.view_as(SetupOptions).save_main_session = True
+
+  with beam.Pipeline(options=options) as p:
     def format_user_score_sums(user_score):
-        (user, score) = user_score
-        return 'user: %s, total_score: %s' % (user, score)
+      (user, score) = user_score
+      return 'user: %s, total_score: %s' % (user, score)
 
-    with beam.Pipeline(options=options) as pipe:
-        (
-            pipe  # pylint: disable=expression-not-assigned
-            | 'ReadInputText' >> beam.io.ReadFromText(args.input)
-            | 'UserScore' >> UserScore()
-            | 'FormatUserScoreSums' >> beam.Map(format_user_score_sums)
-            | 'WriteUserScoreSums' >> beam.io.WriteToText(args.output)
-        )
+    (p  # pylint: disable=expression-not-assigned
+     | 'ReadInputText' >> beam.io.ReadFromText(args.input)
+     | 'UserScore' >> UserScore()
+     | 'FormatUserScoreSums' >> beam.Map(format_user_score_sums)
+     | 'WriteUserScoreSums' >> beam.io.WriteToText(args.output))
+# [END main]
 
 
 if __name__ == '__main__':
-    import argparse
-    from rillbeam.helpers import get_options
-
-    parser = argparse.ArgumentParser()
-
-    # The default maps to two large Google Cloud Storage files (each ~12GB)
-    # holding two subsequent day's worth (roughly) of data.
-    parser.add_argument(
-        '--input',
-        type=str,
-        default='gs://apache-beam-samples/game/gaming_data*.csv',
-        help='Path to the data file(s) containing game data.')
-    parser.add_argument(
-        '--output',
-        type=str,
-        required=True,
-        help='Path to the output file(s).')
-
-    known_args, pipeline_args = parser.parse_known_args()
-    pipeline_args = get_options(
-        pipeline_args, 'streaming',
-        runner='DirectRunner',
-    )
-    main(known_args, pipeline_args)
+  logging.getLogger().setLevel(logging.INFO)
+  run()
