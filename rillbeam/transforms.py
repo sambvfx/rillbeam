@@ -6,7 +6,7 @@ import apache_beam as beam
 from apache_beam import pvalue
 import apache_beam.transforms.window as window
 import apache_beam.transforms.trigger as trigger
-import apache_beam.utils.timestamp as timestamp
+
 from apache_beam.typehints import *
 
 
@@ -38,23 +38,15 @@ class FailOnFive(beam.DoFn):
 @beam.typehints.with_input_types(element=T)
 @beam.typehints.with_output_types(T)
 class LogFn(beam.DoFn):
-    def process(self, element, window=beam.DoFn.WindowParam, name=None, repr=True, **kwargs):
+    def process(self, element, name=None, repr=True, **kwargs):
         if name is None:
             name = self.default_label()
-
         _logger = logging.getLogger(name)
         _logger.setLevel(logging.DEBUG)
-
-        try:
-            window_end = window.end.to_utc_datetime()
-        except OverflowError:
-            window_end = str(int(window.end))
-
-
         if repr:
-            _logger.info('{!r} {}'.format(element, window_end))
+            _logger.info('{!r}'.format(element))
         else:
-            _logger.info('{} {}'.format(element, window_end))
+            _logger.info(element)
         yield element
 
 
@@ -153,3 +145,21 @@ class Sync(beam.PTransform):
             | beam.GroupByKey()
             | beam.Values()
         )
+
+
+class Farm(beam.PTransform):
+    """
+
+    """
+    INPUT_TOPIC = 'projects/dataflow-241218/topics/rillbeam-inflow'
+    OUTPUT_TOPIC = 'projects/dataflow-241218/topics/rillbeam-outflow'
+    SUBSCRIPTION_PATH = 'projects/dataflow-241218/subscriptions/manual'
+
+    def expand(self, pcoll):
+        (
+            pcoll
+            | 'inflow' >> beam.io.WriteToPubSub(self.OUTPUT_TOPIC)
+            | 'outflow' >> beam.io.ReadFromPubSub(topic=self.INPUT_TOPIC)
+            | 'decode' >> beam.Map(lambda x: x.decode('utf-8'))
+        )
+        pass
