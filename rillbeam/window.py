@@ -10,14 +10,21 @@ from apache_beam.portability import common_urns
 from apache_beam.portability.api import standard_window_fns_pb2
 from apache_beam.utils import proto_utils
 from apache_beam.utils import urns
-from apache_beam.utils.timestamp import MIN_TIMESTAMP
+from apache_beam.utils.timestamp import MIN_TIMESTAMP, MAX_TIMESTAMP
 from apache_beam.utils.timestamp import Duration
 
 from apache_beam.transforms.window import WindowFn, IntervalWindow
 
 
 def format_timestamp(t):
-  return str(datetime.datetime.fromtimestamp(t))
+  try:
+    return str(datetime.datetime.fromtimestamp(t))
+  except ValueError:
+    return 'MAX'
+
+
+def is_final(x):
+  return isinstance(x, tuple) and len(x) == 2 and not x[1]
 
 
 class CustomWindow(WindowFn):
@@ -39,7 +46,10 @@ class CustomWindow(WindowFn):
     timestamp = context.timestamp
     logging.info("ASSIGN: %s %s" %
                  (context.element, format_timestamp(timestamp)))
-    return [IntervalWindow(timestamp, timestamp + self.gap_size)]
+    if is_final(context.element):
+      return [IntervalWindow(timestamp, MAX_TIMESTAMP)]
+    else:
+      return [IntervalWindow(timestamp, timestamp + self.gap_size)]
 
   def get_window_coder(self):
     return coders.IntervalWindowCoder()
@@ -59,13 +69,23 @@ class CustomWindow(WindowFn):
                    (format_timestamp(w.start), format_timestamp(w.end)))
       if to_merge:
         if end > w.start:
+          # window `w` overlaps with `to_merge`: add it
           to_merge.append(w)
-          if w.end > end:
+          if w.end == MAX_TIMESTAMP:
+            logging.info("FINAL: (%s, %s)" %
+                         (format_timestamp(to_merge[0].start),
+                          format_timestamp(end)))
+            # we don't want any more windows on this key
+            end = w.start
+            break
+          elif w.end > end:
             end = w.end
         else:
+          # FIXME: this check seems superfluous
           if len(to_merge) > 1:
             logging.info("NEW: (%s, %s)" %
-                         (to_merge[0].start, format_timestamp(end)))
+                         (format_timestamp(to_merge[0].start),
+                          format_timestamp(end)))
             merge_context.merge(to_merge,
                                 IntervalWindow(to_merge[0].start, end))
           to_merge = [w]
@@ -75,7 +95,8 @@ class CustomWindow(WindowFn):
         end = w.end
     if len(to_merge) > 1:
       logging.info("NEW: (%s, %s)" %
-                   (to_merge[0].start, format_timestamp(end)))
+                   (format_timestamp(to_merge[0].start),
+                    format_timestamp(end)))
       merge_context.merge(to_merge, IntervalWindow(to_merge[0].start, end))
 
   def __eq__(self, other):

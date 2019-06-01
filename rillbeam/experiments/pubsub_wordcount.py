@@ -27,44 +27,36 @@ class WordExtractingDoFn(beam.DoFn):
     """
 
     def __init__(self):
-        self.words_counter = Metrics.counter(
-            self.__class__, 'words')
-        self.word_lengths_counter = Metrics.counter(
-            self.__class__, 'word_lengths')
-        self.word_lengths_dist = Metrics.distribution(
-            self.__class__, 'word_len_dist')
+        # self.words_counter = Metrics.counter(
+        #     self.__class__, 'words')
+        # self.word_lengths_counter = Metrics.counter(
+        #     self.__class__, 'word_lengths')
+        # self.word_lengths_dist = Metrics.distribution(
+        #     self.__class__, 'word_len_dist')
         self.empty_line_counter = Metrics.counter(
             self.__class__, 'empty_lines')
 
     def process(self, element):
         """
-        Returns an iterator over the words of this element.
-
-        The element is a line of text.  If the line is blank, note that,
-        too.
+        yield a tuple of key and a bool indicating whether more of this
+        key remain
         """
         text_line = element.strip()
         if not text_line:
             self.empty_line_counter.inc(1)
-        words = re.findall(r'[\w\']+', text_line, re.UNICODE)
-        for w in words:
-            self.words_counter.inc()
-            self.word_lengths_counter.inc(len(w))
-            self.word_lengths_dist.update(len(w))
-        return words
+        parts = text_line.split()
+        if len(parts) == 1:
+            yield parts[0], True
+        else:
+            yield parts[0], False
 
 
 def main(options):
     from rillbeam.helpers import pubsub_interface, pubsub_interface2
     from rillbeam.window import CustomWindow
 
-    def count_ones(word_ones):
-        (word, ones) = word_ones
-        return word, sum(ones)
-
-    def format_result(word_count):
-        (word, count) = word_count
-        return '%s: %d' % (word, count)
+    def format_result(pair):
+        return '%s: %s' % pair
 
     pipe = beam.Pipeline(options=options)
 
@@ -72,12 +64,9 @@ def main(options):
         pipe
         | 'PubSubInflow' >> beam.io.ReadFromPubSub(topic=INPUT_TOPIC)
         | 'Decode' >> beam.Map(lambda x: x.decode('utf-8'))
-        | 'Split' >> (beam.ParDo(WordExtractingDoFn())
-                      .with_output_types(unicode))
-        | 'PairWithOne' >> beam.Map(lambda x: (x, 1))
+        | 'Split' >> beam.ParDo(WordExtractingDoFn())
         | 'Window' >> beam.WindowInto(CustomWindow(30))
         | 'GroupByKey' >> beam.GroupByKey()
-        | 'CountOnes' >> beam.Map(count_ones)
         | 'Format' >> beam.Map(format_result)
         | 'ToBytes' >> beam.Map(lambda x: bytes(x))
         | 'PubSubOutflow' >> beam.io.WriteToPubSub(OUTPUT_TOPIC)
