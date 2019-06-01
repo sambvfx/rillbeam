@@ -107,18 +107,21 @@ class ExtractAndSumScore(beam.PTransform):
     self.field = field
 
   def expand(self, pcoll):
-    from rillbeam.components import Log
+    from rillbeam.transforms import Log
     from rillbeam.window import CustomWindow
 
     return (pcoll
             | beam.Map(lambda elem: (elem[self.field], elem['score']))
+            # | 'WindowIntoSessions' >> beam.WindowInto(
+            #     CustomWindow(2 * 60 * 60),
+            #     timestamp_combiner=beam.window.TimestampCombiner.OUTPUT_AT_EOW
+            # )
             | 'WindowIntoSessions' >> beam.WindowInto(
-                CustomWindow(2 * 60 * 60),
+                beam.window.Sessions(2 * 60 * 60),
                 timestamp_combiner=beam.window.TimestampCombiner.OUTPUT_AT_EOW
             )
             | 'PreLog' >> Log()
             | 'GroupByKey' >> beam.GroupByKey()
-            | 'PostLog' >> Log()
             )
 
 # [END extract_and_sum_score]

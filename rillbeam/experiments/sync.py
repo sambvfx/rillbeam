@@ -55,9 +55,6 @@ def main(options):
 
 
 if __name__ == '__main__':
-    import argparse
     from rillbeam.helpers import get_options
-    parser = argparse.ArgumentParser()
-    known_args, pipeline_args = parser.parse_known_args()
-    pipeline_args = get_options(pipeline_args)
+    pipeline_args = get_options(__name__)
     main(pipeline_args)

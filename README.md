@@ -3,7 +3,7 @@
 To run various experiments using the direct runner:
 ```bash
 source venv/bin/activate
-python -m rillbeam.experiments
+python -m rillbeam.experiments.flowbased
 ```
 
 ## Flink Runner
@@ -23,7 +23,7 @@ Then:
 
 ```bash
 source venv/bin/activate
-python -m rillbeam.experiments --filter flowbased --runner=PortableRunner --job_endpoint=localhost:8099 --setup_file ./setup.py
+python -m rillbeam.experiments.flowbased --runner flink
 ```
 
 Note: if using a single node flink cluster, you must increase the number of 
@@ -39,5 +39,5 @@ taskmanager.numberOfTaskSlots: 8
 
 ```bash
 source venv/bin/activate
-python -m rillbeam.experiments --filter flowbased --runner DataflowRunner --project dataflow-241218 --temp_location gs://dataflow-241218/temp --setup_file ./setup.py
+python -m rillbeam.experiments.flowbased --runner dataflow
 ```
