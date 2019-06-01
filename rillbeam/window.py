@@ -16,6 +16,10 @@ from apache_beam.utils.timestamp import Duration
 from apache_beam.transforms.window import WindowFn, IntervalWindow
 
 
+def format_timestamp(t):
+  return str(datetime.datetime.fromtimestamp(t))
+
+
 class CustomWindow(WindowFn):
   """A windowing function that groups elements into sessions.
 
@@ -33,40 +37,46 @@ class CustomWindow(WindowFn):
 
   def assign(self, context):
     timestamp = context.timestamp
+    logging.info("ASSIGN: %s %s" %
+                 (context.element, format_timestamp(timestamp)))
     return [IntervalWindow(timestamp, timestamp + self.gap_size)]
 
   def get_window_coder(self):
     return coders.IntervalWindowCoder()
 
-  def merge(self, merge_context):
-    logging.info("%d windows" % len(merge_context.windows))
-    start = min([w.start for w in merge_context.windows])
-    end = min([w.start for w in merge_context.windows])
-    merge_context.merge(merge_context.windows, IntervalWindow(start, end))
-
   # def merge(self, merge_context):
-  #   to_merge = []
-  #   end = MIN_TIMESTAMP
   #   logging.info("%d windows" % len(merge_context.windows))
-  #   for w in sorted(merge_context.windows, key=lambda w: w.start):
-  #     logging.info("WINDOW: %s, %s" %
-  #                  (datetime.datetime.fromtimestamp(w.start), datetime.datetime.fromtimestamp(w.end)))
-  #     if to_merge:
-  #       if end > w.start:
-  #         to_merge.append(w)
-  #         if w.end > end:
-  #           end = w.end
-  #       else:
-  #         if len(to_merge) > 1:
-  #           merge_context.merge(to_merge,
-  #                               IntervalWindow(to_merge[0].start, end))
-  #         to_merge = [w]
-  #         end = w.end
-  #     else:
-  #       to_merge = [w]
-  #       end = w.end
-  #   if len(to_merge) > 1:
-  #     merge_context.merge(to_merge, IntervalWindow(to_merge[0].start, end))
+  #   start = min([w.start for w in merge_context.windows])
+  #   end = min([w.start for w in merge_context.windows])
+  #   merge_context.merge(merge_context.windows, IntervalWindow(start, end))
+
+  def merge(self, merge_context):
+    to_merge = []
+    end = MIN_TIMESTAMP
+    logging.info("%d windows" % len(merge_context.windows))
+    for w in sorted(merge_context.windows, key=lambda w: w.start):
+      logging.info("WINDOW: (%s, %s)" %
+                   (format_timestamp(w.start), format_timestamp(w.end)))
+      if to_merge:
+        if end > w.start:
+          to_merge.append(w)
+          if w.end > end:
+            end = w.end
+        else:
+          if len(to_merge) > 1:
+            logging.info("NEW: (%s, %s)" %
+                         (to_merge[0].start, format_timestamp(end)))
+            merge_context.merge(to_merge,
+                                IntervalWindow(to_merge[0].start, end))
+          to_merge = [w]
+          end = w.end
+      else:
+        to_merge = [w]
+        end = w.end
+    if len(to_merge) > 1:
+      logging.info("NEW: (%s, %s)" %
+                   (to_merge[0].start, format_timestamp(end)))
+      merge_context.merge(to_merge, IntervalWindow(to_merge[0].start, end))
 
   def __eq__(self, other):
     if type(self) == type(other) == CustomWindow:

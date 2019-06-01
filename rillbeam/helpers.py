@@ -1,7 +1,11 @@
+from __future__ import print_function
+
 import os
 import argparse
 import time
 import sys
+
+from termcolor import cprint, colored
 
 from apache_beam.options.pipeline_options import PipelineOptions
 
@@ -137,3 +141,62 @@ def pubsub_interface(subscription_path, input_topic, initial_data=None,
                     publisher.publish(input_topic, data=msg)
         finally:
             sub_future.cancel()
+
+
+def pubsub_interface2(subscription_path, input_topic, initial_data=None,
+                      delay_seconds=1.0):
+
+    from google.cloud import pubsub_v1
+    from google.cloud.pubsub_v1.subscriber.message import Message
+
+    def callback(message):
+        # type: (Message) -> None
+        message.ack()
+        cprint('{} : {}'.format(
+            message.publish_time, message.data.decode()), 'cyan')
+
+    subscriber = pubsub_v1.SubscriberClient()
+    publisher = pubsub_v1.PublisherClient()
+
+    cprint('Beginning interactive pubsub session.', 'yellow',
+              attrs=['bold'])
+    print()
+    cprint('Subscriber {!r}...'.format(subscription_path),
+              'yellow')
+    cprint('Publisher {!r}...'.format(input_topic),
+              'yellow')
+    print()
+
+    sub_future = subscriber.subscribe(
+        subscription_path,
+        callback=callback)
+
+    if initial_data:
+        cprint('Sending {} initial packages...'.format(
+            len(initial_data)), 'yellow')
+        for msg in initial_data:
+            cprint('Sending {!r}...'.format(msg))
+            time.sleep(delay_seconds)
+            publisher.publish(input_topic, data=msg)
+
+    cprint('Send messages to pubsub. Output messages will print '
+              'when they are received.', 'green')
+    cprint('Type \'exit\' to stop.', 'green',
+              attrs=['bold'])
+    print()
+
+    try:
+        while True:
+            try:
+                msg = raw_input()
+            except KeyboardInterrupt:
+                continue
+            if not msg:
+                continue
+            elif msg.lower() == 'exit':
+                break
+            else:
+                cprint('Sending {!r}...'.format(msg), 'yellow')
+                publisher.publish(input_topic, data=msg)
+    finally:
+        sub_future.cancel()

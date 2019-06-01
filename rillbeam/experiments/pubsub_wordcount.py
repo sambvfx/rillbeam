@@ -3,6 +3,7 @@ Test pubsub graph.
 """
 import re
 import time
+import logging
 
 from termcolor import cprint
 
@@ -12,8 +13,6 @@ from apache_beam.runners.runner import PipelineState
 from apache_beam.metrics import Metrics
 
 from apache_beam.runners.runner import PipelineResult
-
-from rillbeam.helpers import pubsub_interface
 
 
 # Google pubsub topics and subscriptions
@@ -56,6 +55,8 @@ class WordExtractingDoFn(beam.DoFn):
 
 
 def main(options):
+    from rillbeam.helpers import pubsub_interface, pubsub_interface2
+    from rillbeam.window import CustomWindow
 
     def count_ones(word_ones):
         (word, ones) = word_ones
@@ -74,7 +75,7 @@ def main(options):
         | 'Split' >> (beam.ParDo(WordExtractingDoFn())
                       .with_output_types(unicode))
         | 'PairWithOne' >> beam.Map(lambda x: (x, 1))
-        | 'Window' >> beam.WindowInto(window.FixedWindows(5, 0))
+        | 'Window' >> beam.WindowInto(CustomWindow(30))
         | 'GroupByKey' >> beam.GroupByKey()
         | 'CountOnes' >> beam.Map(count_ones)
         | 'Format' >> beam.Map(format_result)
@@ -90,7 +91,7 @@ def main(options):
         time.sleep(10)
 
     try:
-        pubsub_interface(SUBSCRIPTION_PATH, INPUT_TOPIC)
+        pubsub_interface2(SUBSCRIPTION_PATH, INPUT_TOPIC)
     finally:
         print
         cprint('Shutting down pipeline...', 'yellow', attrs=['bold'])
@@ -104,4 +105,5 @@ if __name__ == '__main__':
         __name__, None,
         'streaming',
     )
+    logging.getLogger().setLevel(logging.INFO)
     main(pipeline_args)
