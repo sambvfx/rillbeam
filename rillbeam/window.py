@@ -26,10 +26,6 @@ def format_timestamp(t):
         return 'MAX'
 
 
-def is_final(x):
-    return isinstance(x, tuple) and len(x) == 2 and not x[1]
-
-
 class CustomWindow(WindowFn):
     """
     A windowing function that groups elements into sessions.
@@ -41,16 +37,17 @@ class CustomWindow(WindowFn):
         gap_size: Size of the gap between windows as floating-point seconds.
     """
 
-    def __init__(self, gap_size):
+    def __init__(self, gap_size, is_final):
         if gap_size <= 0:
             raise ValueError('The size parameter must be strictly positive.')
         self.gap_size = Duration.of(gap_size)
+        self.is_final = is_final
 
     def assign(self, context):
         timestamp = context.timestamp
         _logger.info("ASSIGN: %s %s" %
                      (context.element, format_timestamp(timestamp)))
-        if is_final(context.element):
+        if self.is_final(context.element):
             return [IntervalWindow(timestamp, MAX_TIMESTAMP)]
         else:
             return [IntervalWindow(timestamp, timestamp + self.gap_size)]

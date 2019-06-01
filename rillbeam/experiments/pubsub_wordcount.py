@@ -53,6 +53,9 @@ def main(options):
     from rillbeam.helpers import pubsub_interface, pubsub_interface2
     from rillbeam.window import CustomWindow
 
+    def is_final(x):
+        return isinstance(x, tuple) and len(x) == 2 and not x[1]
+
     def format_result(pair):
         return '%s: %s' % pair
 
@@ -63,7 +66,7 @@ def main(options):
         | 'PubSubInflow' >> beam.io.ReadFromPubSub(topic=INPUT_TOPIC)
         | 'Decode' >> beam.Map(lambda x: x.decode('utf-8'))
         | 'Split' >> beam.ParDo(WordExtractingDoFn())
-        | 'Window' >> beam.WindowInto(CustomWindow(30))
+        | 'Window' >> beam.WindowInto(CustomWindow(30, is_final))
         | 'GroupByKey' >> beam.GroupByKey()
         | 'Format' >> beam.Map(format_result)
         | 'ToBytes' >> beam.Map(lambda x: bytes(x))
