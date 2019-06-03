@@ -1,16 +1,24 @@
 from __future__ import absolute_import
 
 import logging
+import threading
+
+from google.protobuf import duration_pb2
 
 import apache_beam as beam
 from apache_beam import pvalue
 import apache_beam.transforms.window as window
 import apache_beam.transforms.trigger as trigger
+from apache_beam.coders import coders
+from apache_beam.utils.timestamp import MAX_TIMESTAMP
 
 from apache_beam.typehints import *
 
 
 T = TypeVariable('T')
+
+
+_logger = logging.getLogger(__name__)
 
 
 @beam.typehints.with_input_types(element=T, duration=float,
@@ -38,15 +46,19 @@ class FailOnFive(beam.DoFn):
 @beam.typehints.with_input_types(element=T)
 @beam.typehints.with_output_types(T)
 class LogFn(beam.DoFn):
+
+    lock = threading.RLock()
+
     def process(self, element, name=None, repr=True, **kwargs):
-        if name is None:
-            name = self.default_label()
-        _logger = logging.getLogger(name)
-        _logger.setLevel(logging.DEBUG)
-        if repr:
-            _logger.info('{!r}'.format(element))
-        else:
-            _logger.info(element)
+        with self.lock:
+            if name is None:
+                name = self.default_label()
+            log = logging.getLogger(name)
+            log.setLevel(logging.DEBUG)
+            if repr:
+                log.info('{!r}'.format(element))
+            else:
+                log.info(element)
         yield element
 
 
@@ -89,6 +101,74 @@ class SplitFn(beam.DoFn):
             yield pvalue.TaggedOutput('upper', element)
 
 
+class SyncWindowFn(window.WindowFn):
+
+    def __init__(self, size):
+        if size <= 0:
+            raise ValueError('Must provide a positive stream size.')
+        self.size = size
+
+    def __eq__(self, other):
+        if type(self) == type(other):
+            return self.size == other.size
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash(self.size)
+
+    # def to_runner_api_parameter(self, context):
+    #     return (common_urns.session_windows.urn,
+    #             standard_window_fns_pb2.SessionsPayload(
+    #                 gap_size=self.MAX_DURATION))
+    #
+    # @urns.RunnerApiFn.register_urn(
+    #     common_urns.session_windows.urn,
+    #     standard_window_fns_pb2.SessionsPayload)
+    # def from_runner_api_parameter(fn_parameter, unused_context):
+    #     return SyncWindowFn(
+    #         streams=fn_parameter.gap_size)
+
+    def assign(self, context):
+        return [window.IntervalWindow(context.element[0], MAX_TIMESTAMP)]
+
+    def get_window_coder(self):
+        return coders.IntervalWindowCoder()
+
+    def merge(self, merge_context):
+        to_merge = None
+        for w in sorted(merge_context.windows, key=lambda x: x.start):
+            _logger.info('WINDOW: {!r}'.format(w))
+
+            if to_merge is None:
+                to_merge = [w]
+                continue
+
+            current = to_merge[0].start
+
+            if w.start > current:
+                merge_context.merge(
+                    to_merge, window.IntervalWindow(
+                        to_merge[0].start, MAX_TIMESTAMP))
+                to_merge = [w]
+                continue
+
+            assert w.start == current
+            to_merge.append(w)
+
+            if len(to_merge) == self.size:
+                _logger.info('MERGING: {!r}'.format(to_merge))
+                merge_context.merge(
+                    to_merge, window.IntervalWindow(current, current))
+                to_merge = None
+
+        if len(to_merge) > 1:
+            merge_context.merge(
+                to_merge, window.IntervalWindow(
+                    to_merge[0].start, MAX_TIMESTAMP))
+
+
 class Sync(beam.PTransform):
     """
     Group PCollections by element index.
@@ -129,18 +209,23 @@ class Sync(beam.PTransform):
             return idx, item
 
         return (
-            [pcoll | 'coll{}'.format(i) >> beam.Map(_keymap, i)
-             for i, pcoll in enumerate(pcolls)]
-            # Passing self.pipeline here is copying what's done in CoGroupByKey
-            # Which is the only other multi-pcollection transform I had to
-            # model this after.
-            | beam.Flatten(pipeline=self.pipeline)
-            # I think we may need a custom trigger that fires once we have an
-            # element from each collection.
+            (pcoll
+             | 'coll{}'.format(i) >> beam.Map(_keymap, i)
+             # | 'win{}'.format(i) >> beam.WindowInto(
+             #    window.GlobalWindows(),
+             #    trigger=trigger.AfterCount(1),
+             #    accumulation_mode=trigger.AccumulationMode.DISCARDING,
+             #   )
+             for i, pcoll in enumerate(pcolls))
+            | beam.Flatten()
+            | 'PostFlatten' >> Log()
+            # FIXME: This isn't working
+            # | beam.WindowInto(SyncWindowFn(len(pcolls)))
+            # FIXME: This works
             | beam.WindowInto(
-                  window.FixedWindows(10),
-                  trigger=trigger.Repeatedly(trigger.AfterCount(2)),
-                  accumulation_mode=trigger.AccumulationMode.DISCARDING
+               window.GlobalWindows(),
+               trigger=trigger.AfterCount(1),
+               accumulation_mode=trigger.AccumulationMode.DISCARDING,
               )
             | beam.GroupByKey()
             | beam.Values()

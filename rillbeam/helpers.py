@@ -4,10 +4,14 @@ import os
 import argparse
 import time
 import sys
+import logging
 
-from termcolor import cprint, colored
+from termcolor import cprint
 
 from apache_beam.options.pipeline_options import PipelineOptions
+
+
+_logger = logging.getLogger(__name__)
 
 
 # NOTE: I don't *think* this is needed when using the DataflowRunner?
@@ -79,19 +83,30 @@ def get_options(mod_name, parser=None, *args, **kwargs):
     return PipelineOptions(pipeline_args), known_args
 
 
+class CursesHandler(logging.Handler):
+
+    def __init__(self, pane):
+        logging.Handler.__init__(self)
+        self.pane = pane
+
+    def emit(self, record):
+        self.pane.write(record.getMessage())
+
+
 def pubsub_interface(subscription_path, input_topic, initial_data=None,
-                     delay_seconds=1.0):
+                     delay_seconds=1.0, callback=None):
     import functools
     from google.cloud import pubsub_v1
     from google.cloud.pubsub_v1.subscriber.message import Message
     from rillbeam import tapp
 
-    def callback(pane, message):
-        # type: (tapp.Pane, Message) -> None
-        message.ack()
-        with pane.batch:
-            pane.write('{} : {}'.format(
-                message.publish_time, message.data.decode()), 'cyan')
+    if callback is None:
+        def callback(pane, message):
+            # type: (tapp.Pane, Message) -> None
+            message.ack()
+            with pane.batch:
+                pane.write('{} : {}'.format(
+                    message.publish_time, message.data.decode()), 'cyan')
 
     subscriber = pubsub_v1.SubscriberClient()
     publisher = pubsub_v1.PublisherClient()
@@ -105,31 +120,43 @@ def pubsub_interface(subscription_path, input_topic, initial_data=None,
         app.write('Publisher {!r}...'.format(input_topic),
                   'yellow')
         app.write()
+        app.write('Send messages to pubsub. Output messages will print '
+                  'when they are received.', 'green')
+        app.write('Type \'exit\' to stop.', 'green',
+                  attrs=['bold'])
 
-        streampane = app.pane(40, 80, app.line + 4, 0)
+        prompt = app.pane(3, app.width, app.line, 0)
+        y = app.line + prompt.height
+
+        height = app.height - 1 - y
+        ypos = y
+        col1 = int(app.width * 0.4)
+        col2 = int(app.width * 0.6)
+
+        app.write('stdout', y=ypos, attrs=['bold'])
+        app.write('subscriber', x=col1, y=y, attrs=['bold'])
+        logpane = app.pane(height, col1, ypos + 1, 0)
+        logging.getLogger().addHandler(CursesHandler(logpane))
+        streampane = app.pane(height, col2, ypos + 1, col1)
 
         sub_future = subscriber.subscribe(
             subscription_path,
             callback=functools.partial(callback, streampane))
 
         if initial_data:
-            streampane.write('Sending {} initial packages...'.format(
-                len(initial_data)), 'yellow')
-            for msg in initial_data:
-                streampane.write('Sending {!r}...'.format(msg))
-                time.sleep(delay_seconds)
-                publisher.publish(input_topic, data=msg)
-
-        app.write('Send messages to pubsub. Output messages will print '
-                  'when they are received.', 'green')
-        app.write('Type \'exit\' to stop.', 'green',
-                  attrs=['bold'])
-        app.write()
-
+            _logger.info('Sending {} initial packages...'.format(
+                len(initial_data)))
+            with streampane.batch:
+                for msg in initial_data:
+                    _logger.info('Sending {!r}...'.format(msg))
+                    time.sleep(delay_seconds)
+                    publisher.publish(input_topic, data=msg)
         try:
             while True:
+                prompt.win.clear()
+                prompt.win.border()
                 try:
-                    msg = app.prompt()
+                    msg = prompt.prompt()
                 except KeyboardInterrupt:
                     continue
                 if not msg:
@@ -137,7 +164,7 @@ def pubsub_interface(subscription_path, input_topic, initial_data=None,
                 elif msg.lower() == 'exit':
                     break
                 else:
-                    streampane.write('Sending {!r}...'.format(msg))
+                    _logger.info('Sending {!r}...'.format(msg))
                     publisher.publish(input_topic, data=msg)
         finally:
             sub_future.cancel()

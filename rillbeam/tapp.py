@@ -3,6 +3,7 @@ Terminal App
 
 Wrappers around the curses library for building terminal apps.
 """
+import logging
 import curses
 import threading
 
@@ -41,7 +42,9 @@ class App(object):
 
     @classmethod
     def new(cls, *args, **kwargs):
+        curses.setupterm()
         win = curses.initscr(*args, **kwargs)
+
         # init color
         curses.start_color()
         curses.use_default_colors()
@@ -62,13 +65,14 @@ class App(object):
         return len(self._data) + 1
 
     def cull(self):
-        self._data = self._data[-self.height:]
+        self._data = self._data[-(self.height - 2):]
 
     def update(self):
         self.cull()
         for i, args in enumerate(self._data):
             y, x, value, color = args
-            value += (' ' * (self.width - len(value) - 2))
+            # value = '({}/{}) {}'.format(i, self.height, value)
+            value += (' ' * (self.width - len(value) - 4))
             self.win.addstr(y or i + 1, x, value, color)
             # FIXME: this messes with borders
             # self.win.clrtoeol()
@@ -80,7 +84,11 @@ class App(object):
         for attr in attrs:
             color = color | self.ATTRS[attr]
         with self.batch:
-            self._data.append((y, x, value, color))
+            for v in str(value).split('\n'):
+                v = v.strip()
+                if len(v) > self.width:
+                    v = v[:self.width-5] + '...'
+                self._data.append((y, x, v, color))
             self.update()
 
     def prompt(self, p='> ', y=None, x=1):
@@ -88,7 +96,6 @@ class App(object):
             y = self.line
         self.win.refresh()
         self.win.addstr(y or self.line, x, p)
-        self.win.clrtoeol()
         self.win.refresh()
         curses.echo()
         msg = self.win.getstr(y, x + 2)
@@ -110,6 +117,11 @@ class Pane(App):
         win.border()
         win.refresh()
         return win
+
+    def write(self, *args, **kwargs):
+        super(Pane, self).write(*args, **kwargs)
+        self.win.clear()
+        self.win.border()
 
     def rebuild(self, *args, **kwargs):
         inst = self.__class__(*args, **kwargs)

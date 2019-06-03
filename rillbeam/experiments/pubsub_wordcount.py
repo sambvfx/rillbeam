@@ -1,14 +1,12 @@
 """
 Test pubsub graph.
 """
-import re
 import time
 import logging
 
 from termcolor import cprint
 
 import apache_beam as beam
-import apache_beam.transforms.window as window
 from apache_beam.runners.runner import PipelineState
 from apache_beam.metrics import Metrics
 
@@ -80,7 +78,7 @@ def main(options):
         time.sleep(10)
 
     try:
-        pubsub_interface2(SUBSCRIPTION_PATH, INPUT_TOPIC)
+        pubsub_interface(SUBSCRIPTION_PATH, INPUT_TOPIC)
     finally:
         print
         cprint('Shutting down pipeline...', 'yellow', attrs=['bold'])
