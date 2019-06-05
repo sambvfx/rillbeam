@@ -88,9 +88,10 @@ class CursesHandler(logging.Handler):
     def __init__(self, pane):
         logging.Handler.__init__(self)
         self.pane = pane
+        self.setFormatter(logging.Formatter("%(name)s: %(message)s"))
 
     def emit(self, record):
-        self.pane.write(record.getMessage())
+        self.pane.write(self.format(record))
 
 
 def pubsub_interface(subscription_path, input_topic, initial_data=None,
@@ -171,16 +172,17 @@ def pubsub_interface(subscription_path, input_topic, initial_data=None,
 
 
 def pubsub_interface2(subscription_path, input_topic, initial_data=None,
-                      delay_seconds=1.0):
+                      delay_seconds=1.0, callback=None):
 
     from google.cloud import pubsub_v1
     from google.cloud.pubsub_v1.subscriber.message import Message
 
-    def callback(message):
-        # type: (Message) -> None
-        message.ack()
-        cprint('{} : {}'.format(
-            message.publish_time, message.data.decode()), 'cyan')
+    if callback is None:
+        def callback(message):
+            # type: (Message) -> None
+            message.ack()
+            cprint('{} : {}'.format(
+                message.publish_time, message.data.decode()), 'cyan')
 
     subscriber = pubsub_v1.SubscriberClient()
     publisher = pubsub_v1.PublisherClient()

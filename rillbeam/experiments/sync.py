@@ -20,29 +20,52 @@ OUTPUT_TOPIC = 'projects/dataflow-241218/topics/rillbeam-outflow'
 SUBSCRIPTION_PATH = 'projects/dataflow-241218/subscriptions/manual'
 
 
-class SlowStr(beam.DoFn):
-    """
-    Test component thata cast to a string slowly... Emulates something
-    that takes a small variable amount of processing time.
-    """
-
-    def process(self, element, duration=0.5, variation=None, **kwargs):
-        import time
-        import random
-        if variation:
-            duration += random.uniform(*variation)
-        time.sleep(duration)
-        yield str(element)
-
-
 def main(options):
+    from rillbeam.transforms import SleepFn
+
+    with beam.Pipeline(options=options) as pipe:
+
+        graph = (
+            pipe
+            | 'PubSubInflow' >> beam.Create(range(5))
+        )
+
+        b1 = (
+            graph
+            | 'AsInt' >> beam.Map(lambda x: int(x))
+            | 'LogInt' >> Log()
+        )
+
+        b2 = (
+            graph
+            | 'AsStr' >> beam.Map(lambda x: str(x))
+            | 'LogStr' >> Log()
+        )
+
+        b3 = (
+            b1
+            | 'Sleep' >> beam.ParDo(SleepFn(0.1))
+            | 'AsFloat' >> beam.Map(lambda x: float(x))
+            | 'LogFloat' >> Log()
+        )
+
+        (
+            (b1, b2, b3)
+            | Sync()
+            | 'SyncLog' >> Log()
+        )
+
+
+def main_with_pubsub(options):
     from rillbeam.helpers import pubsub_interface
+    from rillbeam.transforms import SleepFn
 
     pipe = beam.Pipeline(options=options)
 
     graph = (
         pipe
         | 'PubSubInflow' >> beam.io.ReadFromPubSub(topic=INPUT_TOPIC)
+        | 'Split' >> beam.FlatMap(lambda x: [s.strip() for s in x.split()])
     )
 
     b1 = (
@@ -57,8 +80,15 @@ def main(options):
         | 'LogStr' >> Log()
     )
 
-    synced = (
-        (b1, b2)
+    b3 = (
+        b1
+        | 'Sleep' >> beam.ParDo(SleepFn(0.1))
+        | 'AsFloat' >> beam.Map(lambda x: float(x))
+        | 'LogFloat' >> Log()
+    )
+
+    (
+        (b1, b2, b3)
         | Sync()
         | 'ToBytes' >> beam.Map(lambda x: bytes(x))
         | 'PubSubOutflow' >> beam.io.WriteToPubSub(OUTPUT_TOPIC)

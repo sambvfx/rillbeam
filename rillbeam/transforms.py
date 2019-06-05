@@ -6,11 +6,12 @@ import threading
 from google.protobuf import duration_pb2
 
 import apache_beam as beam
-from apache_beam import pvalue
+import apache_beam.pvalue as pvalue
 import apache_beam.transforms.window as window
 import apache_beam.transforms.trigger as trigger
-from apache_beam.coders import coders
-from apache_beam.utils.timestamp import MAX_TIMESTAMP
+import apache_beam.coders as coders
+import apache_beam.transforms.userstate as userstate
+from apache_beam.utils.timestamp import MIN_TIMESTAMP, MAX_TIMESTAMP
 
 from apache_beam.typehints import *
 
@@ -169,6 +170,54 @@ class SyncWindowFn(window.WindowFn):
                     to_merge[0].start, MAX_TIMESTAMP))
 
 
+class SyncFn(beam.DoFn):
+    STATE = userstate.BagStateSpec(
+        'state',
+        coders.TupleCoder((
+            coders.VarIntCoder(),
+            coders.TupleSequenceCoder(coders.PickleCoder()),
+        )))
+
+    def __init__(self, size):
+        assert size > 0, 'Must provide a positive size'
+        self.size = size
+
+    def process(self, element, state=beam.DoFn.StateParam(STATE)):
+        idx, value = element
+
+        cache = {}
+        for item in state.read():
+            for k, v in item:
+                cache[k] = list(v)
+        cache.setdefault(idx, [])
+        cache[idx].append(value)
+
+        towrite = []
+        for k, v in cache.items():
+            if len(v) == self.size:
+                yield tuple(v)
+            else:
+                towrite.append((k, tuple(v)))
+
+        state.clear()
+        if towrite:
+            state.add(towrite)
+
+
+class ByIndexFn(beam.DoFn):
+    STATE = userstate.BagStateSpec('index', coders.VarIntCoder())
+
+    def process(self, element, state=beam.DoFn.StateParam(STATE)):
+        unused_key, value = element
+        cache = list(state.read())
+        if not cache:
+            cache = [0]
+        idx = cache[0]
+        yield idx, value
+        state.clear()
+        state.add(idx + 1)
+
+
 class Sync(beam.PTransform):
     """
     Group PCollections by element index.
@@ -200,35 +249,28 @@ class Sync(beam.PTransform):
         assert isinstance(pcolls, (tuple, list))
         self._check_pcollections(pcolls)
 
-        # Tracks the current index per-pcoll.
-        _position = {i: 0 for i in range(len(pcolls))}
-
-        def _keymap(item, idx_coll):
-            idx = _position[idx_coll]
-            _position[idx_coll] += 1
-            return idx, item
-
         return (
             (pcoll
-             | 'coll{}'.format(i) >> beam.Map(_keymap, i)
+             | 'key{}'.format(i) >> beam.Map(lambda x: (i, x))
              # | 'win{}'.format(i) >> beam.WindowInto(
-             #    window.GlobalWindows(),
-             #    trigger=trigger.AfterCount(1),
-             #    accumulation_mode=trigger.AccumulationMode.DISCARDING,
-             #   )
+             #      window.GlobalWindows(),
+             #      trigger=trigger.AfterCount(1),
+             #      accumulation_mode=trigger.AccumulationMode.DISCARDING,
+             #  )
+             | 'coll{}'.format(i) >> beam.ParDo(ByIndexFn())
              for i, pcoll in enumerate(pcolls))
+            # | beam.WindowInto(
+            #     window.GlobalWindows(),
+            #     trigger=trigger.AfterCount(1),
+            #     accumulation_mode=trigger.AccumulationMode.DISCARDING,
+            # )
             | beam.Flatten()
-            | 'PostFlatten' >> Log()
-            # FIXME: This isn't working
+            | beam.ParDo(SyncFn(len(pcolls)))
             # | beam.WindowInto(SyncWindowFn(len(pcolls)))
-            # FIXME: This works
-            | beam.WindowInto(
-               window.GlobalWindows(),
-               trigger=trigger.AfterCount(1),
-               accumulation_mode=trigger.AccumulationMode.DISCARDING,
-              )
-            | beam.GroupByKey()
-            | beam.Values()
+            # | beam.GroupByKey()
+            # | beam.Values()
+            # | beam.Filter(lambda x: bool(x))
+            # | beam.Map(lambda x: tuple(x))
         )
 
 
