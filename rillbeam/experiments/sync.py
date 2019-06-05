@@ -20,14 +20,26 @@ OUTPUT_TOPIC = 'projects/dataflow-241218/topics/rillbeam-outflow'
 SUBSCRIPTION_PATH = 'projects/dataflow-241218/subscriptions/manual'
 
 
-def main(options):
+def main_without_pubsub(options):
     from rillbeam.transforms import SleepFn
 
     with beam.Pipeline(options=options) as pipe:
 
+        # FIXME: still can't "fake" timestamp data like we get from pubsub...
         graph = (
             pipe
-            | 'PubSubInflow' >> beam.Create(range(5))
+            | 'start' >> beam.Create([(k, k) for k in range(5)])
+            # The purpose of the WindowInto transform is to establish a
+            # FixedWindows windowing function for the PCollection.
+            # It does not bucket elements into windows since the timestamps
+            # from Create are not spaced 5 ms apart and very likely they all
+            # fall into the same window.
+            | 'w' >> beam.WindowInto(window.FixedWindows(5))
+            # Generate timestamped values using the values as timestamps.
+            # Now there are values 5 ms apart and since Map propagates the
+            # windowing function from input to output the output PCollection
+            # will have elements falling into different 5ms windows.
+            | beam.Map(lambda x_t2: window.TimestampedValue(x_t2[0], x_t2[1]))
         )
 
         b1 = (
@@ -44,7 +56,7 @@ def main(options):
 
         b3 = (
             b1
-            | 'Sleep' >> beam.ParDo(SleepFn(0.1))
+            | 'Sleep' >> beam.ParDo(SleepFn(), duration=0.2)
             | 'AsFloat' >> beam.Map(lambda x: float(x))
             | 'LogFloat' >> Log()
         )
@@ -82,7 +94,7 @@ def main_with_pubsub(options):
 
     b3 = (
         b1
-        | 'Sleep' >> beam.ParDo(SleepFn(0.1))
+        | 'Sleep' >> beam.ParDo(SleepFn(), duration=0.1)
         | 'AsFloat' >> beam.Map(lambda x: float(x))
         | 'LogFloat' >> Log()
     )
@@ -127,4 +139,4 @@ if __name__ == '__main__':
         'streaming'
     )
 
-    main(pipeline_args)
+    main_with_pubsub(pipeline_args)
