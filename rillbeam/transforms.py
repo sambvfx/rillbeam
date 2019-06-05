@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import logging
 import threading
+import functools
 
 from google.protobuf import duration_pb2
 
@@ -11,12 +12,24 @@ import apache_beam.transforms.window as window
 import apache_beam.transforms.trigger as trigger
 import apache_beam.coders as coders
 import apache_beam.transforms.userstate as userstate
+import apache_beam.transforms.timeutil as timeutil
 from apache_beam.utils.timestamp import MIN_TIMESTAMP, MAX_TIMESTAMP
 
 from apache_beam.typehints import *
 
 
 T = TypeVariable('T')
+
+
+def cache(fn):
+    @functools.wraps(fn)
+    def _wrap(*args, **kwargs):
+        if hasattr(fn, '__cache__'):
+            return getattr(fn, '__cache__')
+        ret = fn(*args, **kwargs)
+        setattr(fn, '__cache__', ret)
+        return ret
+    return _wrap
 
 
 _logger = logging.getLogger(__name__)
@@ -262,19 +275,65 @@ class Sync(beam.PTransform):
         )
 
 
-class Farm(beam.PTransform):
-    """
+@beam.typehints.with_input_types(Tuple[Any, Iterable[T]])
+@beam.typehints.with_output_types(Tuple[str, int, T])
+class FauxFarmFn(beam.DoFn):
 
-    """
-    INPUT_TOPIC = 'projects/dataflow-241218/topics/rillbeam-inflow'
-    OUTPUT_TOPIC = 'projects/dataflow-241218/topics/rillbeam-outflow'
-    SUBSCRIPTION_PATH = 'projects/dataflow-241218/subscriptions/manual'
+    STATE = userstate.BagStateSpec(
+        'state',
+        coders.PickleCoder()
+    )
+    VALUES = userstate.BagStateSpec(
+        'values',
+        coders.PickleCoder()
+    )
+    WAIT = userstate.TimerSpec('freq', timeutil.TimeDomain.REAL_TIME)
+
+    def process(self, element,
+                state=beam.DoFn.StateParam(STATE),
+                values=beam.DoFn.StateParam(VALUES),
+                timer=beam.DoFn.TimerParam(WAIT)):
+        import uuid
+        _, data = element
+        id_ = str(uuid.uuid4())
+        state.add((id_, list(range(len(data)))))
+        values.add((id_, data))
+        timer.set(20)
+
+    @userstate.on_timer(WAIT)
+    def task_done(self,
+                  state=beam.DoFn.StateParam(STATE),
+                  values=beam.DoFn.StateParam(VALUES),
+                  timer=beam.DoFn.TimerParam(WAIT)):
+        import random
+
+        refresh = False
+
+        pending = list(state.read())
+        results = {}  # type: Dict[str, List[Any]]
+        for data in values.read():
+            results[data[0]] = data[1]
+        state.clear()
+        values.clear()
+        for jobid, tasks in pending:
+            idx = random.randint(0, len(tasks) - 1)
+            yield jobid, tasks.pop(idx), results[jobid].pop(idx)
+            if tasks:
+                state.add((jobid, tasks))
+                refresh = True
+        for jobid, data in results.items():
+            if data:
+                values.add((jobid, data))
+        if refresh:
+            timer.set(20)
+
+
+class FauxFarm(beam.PTransform):
 
     def expand(self, pcoll):
-        (
+        self._check_pcollection(pcoll)
+        return (
             pcoll
-            | 'inflow' >> beam.io.WriteToPubSub(self.OUTPUT_TOPIC)
-            | 'outflow' >> beam.io.ReadFromPubSub(topic=self.INPUT_TOPIC)
-            | 'decode' >> beam.Map(lambda x: x.decode('utf-8'))
+            | beam.Map(lambda x: ('_null_', x))
+            | beam.ParDo(FauxFarmFn())
         )
-        pass
