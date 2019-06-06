@@ -78,29 +78,36 @@ def main_with_pubsub(options):
         pipe
         | 'PubSubInflow' >> beam.io.ReadFromPubSub(topic=INPUT_TOPIC)
         | 'Split' >> beam.FlatMap(lambda x: [s.strip() for s in x.split()])
+        | 'Key' >> beam.Map(lambda x: (int(x), x))
     )
 
     b1 = (
         graph
-        | 'AsInt' >> beam.Map(lambda x: int(x))
+        | 'AsInt' >> beam.Map(lambda kv: (kv[0], int(kv[1])))
         | 'LogInt' >> Log()
     )
 
     b2 = (
         graph
-        | 'AsStr' >> beam.Map(lambda x: str(x))
+        | 'AsStr' >> beam.Map(lambda kv: (kv[0], str(kv[1])))
         | 'LogStr' >> Log()
     )
 
     b3 = (
         b1
         | 'Sleep' >> beam.ParDo(SleepFn(), duration=0.1)
-        | 'AsFloat' >> beam.Map(lambda x: float(x))
+        | 'AsFloat' >> beam.Map(lambda kv: (kv[0], float(kv[1])))
         | 'LogFloat' >> Log()
     )
 
+    b4 = (
+        b3
+        | 'AsRange' >> beam.Map(lambda kv: (kv[0], range(int(kv[1]))))
+        | 'LogRange' >> Log()
+    )
+
     (
-        (b1, b2, b3)
+        (b1, b2, b3, b4)
         | Sync()
         | 'ToBytes' >> beam.Map(lambda x: bytes(x))
         | 'PubSubOutflow' >> beam.io.WriteToPubSub(OUTPUT_TOPIC)

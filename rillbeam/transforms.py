@@ -192,7 +192,7 @@ class SyncFn(beam.DoFn):
         self.size = size
 
     def process(self, element, state=beam.DoFn.StateParam(STATE)):
-        idx, value = element
+        key, value = element
 
         cache = list(state.read())
         if cache:
@@ -200,40 +200,30 @@ class SyncFn(beam.DoFn):
         else:
             cache = {}
 
-        values = cache.get(idx, [])
+        values = cache.get(key, [])
         values.append(value)
 
         if len(values) == self.size:
-            del cache[idx]
+            del cache[key]
             yield tuple(values)
         else:
-            cache[idx] = values
+            cache[key] = values
 
         state.clear()
         if cache:
             state.add(cache)
 
 
-class ByIndexFn(beam.DoFn):
-
-    STATE = userstate.BagStateSpec('index', coders.VarIntCoder())
-
-    def process(self, element, state=beam.DoFn.StateParam(STATE)):
-        unused_key, value = element
-        cache = list(state.read())
-        if not cache:
-            cache = [0]
-        idx = cache[0]
-        yield idx, value
-        state.clear()
-        state.add(idx + 1)
-
-
 class Sync(beam.PTransform):
     """
-    Group PCollections by element index.
+    Group PCollections by key.
 
-    ([1, 2, 3], [4, 5, 6]) -> [(1, 4), (2, 5), (3, 6)]
+    ([('k1', 1), ('k2', 2), ('k3', 3)],
+     [('k1', 4), ('k2', 5), ('k3', 6)])
+        -> [(1, 4), (2, 5), (3, 6)]
+
+    This transform will yield tuple of results as soon as it receives the same
+    key from each PCollection input.
     """
 
     def __init__(self, **kwargs):
@@ -261,15 +251,7 @@ class Sync(beam.PTransform):
         self._check_pcollections(pcolls)
 
         return (
-            (pcoll
-             | 'key{}'.format(i) >> beam.Map(lambda x: (i, x))
-             # | 'win{}'.format(i) >> beam.WindowInto(
-             #        window.GlobalWindows(),
-             #        trigger=trigger.AfterCount(1),
-             #        accumulation_mode=trigger.AccumulationMode.DISCARDING,
-             #  )
-             | 'coll{}'.format(i) >> beam.ParDo(ByIndexFn())
-             for i, pcoll in enumerate(pcolls))
+            pcolls
             | beam.Flatten(pipeline=self.pipeline)
             | beam.ParDo(SyncFn(len(pcolls)))
         )
