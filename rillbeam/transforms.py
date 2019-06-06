@@ -2,34 +2,21 @@ from __future__ import absolute_import
 
 import logging
 import threading
-import functools
 
-from google.protobuf import duration_pb2
+from termcolor import colored
 
 import apache_beam as beam
 import apache_beam.pvalue as pvalue
 import apache_beam.transforms.window as window
-import apache_beam.transforms.trigger as trigger
 import apache_beam.coders as coders
 import apache_beam.transforms.userstate as userstate
 import apache_beam.transforms.timeutil as timeutil
-from apache_beam.utils.timestamp import MIN_TIMESTAMP, MAX_TIMESTAMP
+from apache_beam.utils.timestamp import MAX_TIMESTAMP
 
 from apache_beam.typehints import *
 
 
 T = TypeVariable('T')
-
-
-def cache(fn):
-    @functools.wraps(fn)
-    def _wrap(*args, **kwargs):
-        if hasattr(fn, '__cache__'):
-            return getattr(fn, '__cache__')
-        ret = fn(*args, **kwargs)
-        setattr(fn, '__cache__', ret)
-        return ret
-    return _wrap
 
 
 _logger = logging.getLogger(__name__)
@@ -63,24 +50,37 @@ class LogFn(beam.DoFn):
 
     lock = threading.RLock()
 
-    def process(self, element, name=None, repr=True, **kwargs):
+    def process(self, element, name=None, color=None, repr=True, **kwargs):
         with self.lock:
             if name is None:
                 name = self.default_label()
             log = logging.getLogger(name)
             log.setLevel(logging.DEBUG)
+
             if repr:
-                log.info('{!r}'.format(element))
+                msg = '{!r}'.format(element)
             else:
-                log.info(element)
+                msg = element
+            if color:
+                if isinstance(color, (str, unicode)):
+                    msg = colored(msg, color)
+                else:
+                    color, at = color
+                    msg = colored(msg, color, attrs=at)
+            log.info(msg)
         yield element
 
 
 class Log(beam.PTransform):
+
+    def __init__(self, color=None, **kwargs):
+        super(Log, self).__init__(**kwargs)
+        self.color = color
+
     def expand(self, pcoll):
         return (
             pcoll
-            | beam.ParDo(LogFn(), name=self.label)
+            | beam.ParDo(LogFn(), name=self.label, color=self.color)
         )
 
 
@@ -275,65 +275,129 @@ class Sync(beam.PTransform):
         )
 
 
-@beam.typehints.with_input_types(Tuple[Any, Iterable[T]])
-@beam.typehints.with_output_types(Tuple[str, int, T])
-class FauxFarmFn(beam.DoFn):
+class JobAggregateLevel:
+    """
+    Enum for specifying the aggregation level of job output collections.
+    """
 
-    STATE = userstate.BagStateSpec(
-        'state',
-        coders.PickleCoder()
-    )
-    VALUES = userstate.BagStateSpec(
-        'values',
-        coders.PickleCoder()
-    )
-    WAIT = userstate.TimerSpec('freq', timeutil.TimeDomain.REAL_TIME)
+    GRAPH = 'graph'
+    JOB = 'job'
+    TASK = 'task'
 
-    def process(self, element,
-                state=beam.DoFn.StateParam(STATE),
-                values=beam.DoFn.StateParam(VALUES),
-                timer=beam.DoFn.TimerParam(WAIT)):
-        import uuid
-        _, data = element
-        id_ = str(uuid.uuid4())
-        state.add((id_, list(range(len(data)))))
-        values.add((id_, data))
-        timer.set(20)
+    STATEFUL = (JOB, GRAPH)
+    STATELESS = (TASK,)
+    ALL = (GRAPH, JOB, TASK)
 
-    @userstate.on_timer(WAIT)
-    def task_done(self,
-                  state=beam.DoFn.StateParam(STATE),
-                  values=beam.DoFn.StateParam(VALUES),
-                  timer=beam.DoFn.TimerParam(WAIT)):
-        import random
 
-        refresh = False
+@beam.typehints.with_input_types(element=Tuple[str, Dict[Any, Any]], level=str)
+@beam.typehints.with_output_types(List[str])
+class _StatefulJobOutputsFn(beam.DoFn):
 
-        pending = list(state.read())
-        results = {}  # type: Dict[str, List[Any]]
-        for data in values.read():
-            results[data[0]] = data[1]
+    STATE = userstate.BagStateSpec('state', coders.PickleCoder())
+
+    @staticmethod
+    def keybylevel(level):
+        # This exists to simply reduce the number of places we specify fields
+        # within our farm payload.
+        if level == JobAggregateLevel.JOB:
+            return 'jobid'
+        elif level == JobAggregateLevel.GRAPH:
+            return 'graphid'
+        raise NotImplementedError
+
+    def process(self, element, level, state=beam.DoFn.StateParam(STATE)):
+        assert level in JobAggregateLevel.STATEFUL
+
+        # example payload structure...
+        # {
+        #     'source': Any
+        #     'graphid': 0,
+        #     'jobtasks': {0: 3, 1: 3},
+        #     'jobid': 0,
+        #     'taskid': 2,
+        #     'output': [
+        #         '/tmp/job-0_output-0.task-2.ext',
+        #         '/tmp/job-0_output-1.task-2.ext',
+        #     ],
+        # }
+        _, payload = element
+
+        # There are two values we will track that differ depending on the
+        # aggregation type/level desired.
+        #
+        # - key : aggregation per-unique value
+        # - size : total number of times expected to see `key`
+
+        key = payload[self.keybylevel(level)]
+        if level == JobAggregateLevel.JOB:
+            # str(key) is to deal with json making all dict keys strings
+            size = payload['jobtasks'][str(key)]
+        elif level == JobAggregateLevel.GRAPH:
+            size = sum(payload['jobtasks'].values())
+        else:
+            raise NotImplementedError
+
+        cache = dict(state.read())
+        seen, data = cache.get(key, (0, []))
+        seen += 1
+        data.extend(payload['output'])
+        cache[key] = (seen, data)
         state.clear()
-        values.clear()
-        for jobid, tasks in pending:
-            idx = random.randint(0, len(tasks) - 1)
-            yield jobid, tasks.pop(idx), results[jobid].pop(idx)
-            if tasks:
-                state.add((jobid, tasks))
-                refresh = True
-        for jobid, data in results.items():
-            if data:
-                values.add((jobid, data))
-        if refresh:
-            timer.set(20)
+
+        for k, v in cache.items():
+            # size == seen
+            if size == v[0]:
+                # cprint('fire-{}: {}'.format(level, k), 'red', attrs=['bold'])
+                yield cache.pop(k)[1]
+            else:
+                state.add((k, v))
 
 
-class FauxFarm(beam.PTransform):
+@beam.typehints.with_input_types(element=Dict[Any, Any], level=str)
+@beam.typehints.with_output_types(List[str])
+class _StatelessJobOutputsFn(beam.DoFn):
+
+    def process(self, element, level):
+        assert level in JobAggregateLevel.STATELESS
+        if level == JobAggregateLevel.TASK:
+            yield element['output']
+        else:
+            raise NotImplementedError
+
+
+class JobOutput(beam.PTransform):
+    """
+    Transform for aggregating job output payloads.
+
+    Graph authors can choose a `JobAggregateLevel` to produce the desired
+    aggregation level (by task, by job, or by graph).
+    """
+
+    def __init__(self, level=JobAggregateLevel.GRAPH, **kwargs):
+        super(JobOutput, self).__init__(**kwargs)
+        assert level in JobAggregateLevel.ALL
+        self.level = level
 
     def expand(self, pcoll):
         self._check_pcollection(pcoll)
-        return (
-            pcoll
-            | beam.Map(lambda x: ('_null_', x))
-            | beam.ParDo(FauxFarmFn())
-        )
+
+        if self.level in JobAggregateLevel.STATEFUL:
+            key = _StatefulJobOutputsFn.keybylevel(self.level)
+            return (
+                pcoll
+                # TODO: Needs researching...
+                #  Stateful transforms must be keyed. Here I'm using a key
+                #  based on how we're going to do aggregation. I don't think
+                #  this changes anything, but perhaps this will affect the
+                #  windows?
+                | beam.Map(lambda x: (x[key], x))
+                | beam.ParDo(_StatefulJobOutputsFn(), self.level)
+            )
+
+        elif self.level in JobAggregateLevel.STATELESS:
+            return (
+                pcoll
+                | beam.ParDo(_StatelessJobOutputsFn(), self.level)
+            )
+        else:
+            raise NotImplementedError
