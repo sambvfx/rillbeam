@@ -1,7 +1,6 @@
 import time
 import logging
 import json
-import uuid
 
 from termcolor import cprint, colored
 
@@ -23,12 +22,12 @@ SUBSCRIPTION_PATH = 'projects/dataflow-241218/subscriptions/manual'
 
 def main(options):
 
-    FARM_KW = dict(
-        source=str(uuid.uuid4()),
-        graphs=1,
-        jobs=2,
-        tasks=3,
-        outputs=4,
+    farm_kw = (
+        ('source', __name__),
+        ('graphs', 1),
+        ('jobs', 2),
+        ('tasks', 3),
+        ('outputs', 4),
     )
 
     pipe = beam.Pipeline(options=options)
@@ -37,8 +36,8 @@ def main(options):
         pipe
         | 'PubSubInflow' >> beam.io.ReadFromPubSub(topic=INPUT_TOPIC)
         | 'Decode' >> beam.Map(lambda x: json.loads(x.decode()))
-        | 'Filter' >> beam.Filter(lambda x: x['source'] == FARM_KW['source'])
-        | 'RawFeed' >> Log()
+        | 'Filter' >> beam.Filter(lambda x: x['source'] == __name__)
+        | 'RawFeed' >> Log(color=('white', ['dark']))
     )
 
     (
@@ -69,17 +68,21 @@ def main(options):
            'red', attrs=['bold'])
     print
 
-    print '{} {}'.format(
-        colored('Generating farm jobs:', 'yellow'),
-        colored(FARM_KW, 'white', attrs=['bold'])
-    )
+    cprint('Generating farm jobs:', 'yellow')
+    for k, v in farm_kw:
+        print '  {}={}'.format(k, colored(repr(v), 'white', attrs=['bold']))
     print
 
     publisher = pubsub_v1.PublisherClient()
-    for payload in rillbeam.data.farm.gen_farm_messages(**FARM_KW):
+    for payload in rillbeam.data.farm.gen_farm_messages(**dict(farm_kw)):
         publisher.publish(INPUT_TOPIC, data=bytes(json.dumps(payload)))
 
-    result.wait_until_finish()
+    try:
+        result.wait_until_finish()
+    except KeyboardInterrupt:
+        print
+        cprint('Shutting down...', 'yellow')
+        result.cancel()
 
 
 if __name__ == '__main__':

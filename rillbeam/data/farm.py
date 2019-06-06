@@ -19,6 +19,18 @@ class FarmPayload(object):
 
 
 def gen_farm_messages(source=None, graphs=1, jobs=2, tasks=3, outputs=2):
+    # example payload structure...
+    # {
+    #     'source': Any
+    #     'graphid': 0,
+    #     'jobtasks': {0: 3, 1: 3},
+    #     'jobid': 0,
+    #     'taskid': 2,
+    #     'output': [
+    #         '/tmp/graph-0/job-0_output-0.task-2.ext',
+    #         '/tmp/graph-0/job-0_output-1.task-2.ext',
+    #     ],
+    # }
     data = []
 
     for graph in range(graphs):
@@ -36,8 +48,8 @@ def gen_farm_messages(source=None, graphs=1, jobs=2, tasks=3, outputs=2):
                 for i in range(outputs):
                     output.append(os.path.join(
                         os.sep,
-                        'tmp',
-                        str(graph),
+                        'beam',
+                        'graph-{}'.format(graph),
                         'job-{}_output-{}.task-{}.ext'.format(
                             job, i, task)
                     ))
