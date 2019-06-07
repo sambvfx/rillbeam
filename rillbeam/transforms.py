@@ -262,9 +262,9 @@ class JobAggregateLevel:
     Enum for specifying the aggregation level of job output collections.
     """
 
-    GRAPH = 'graph'
-    JOB = 'job'
-    TASK = 'task'
+    GRAPH = 'graphid'
+    JOB = 'jobid'
+    TASK = 'taskid'
 
     STATEFUL = (JOB, GRAPH)
     STATELESS = (TASK,)
@@ -276,16 +276,6 @@ class JobAggregateLevel:
 class _StatefulJobOutputsFn(beam.DoFn):
 
     STATE = userstate.BagStateSpec('state', coders.PickleCoder())
-
-    @staticmethod
-    def keybylevel(level):
-        # This exists to simply reduce the number of places we specify fields
-        # within our farm payload.
-        if level == JobAggregateLevel.JOB:
-            return 'jobid'
-        elif level == JobAggregateLevel.GRAPH:
-            return 'graphid'
-        raise NotImplementedError
 
     def process(self, element, level, state=beam.DoFn.StateParam(STATE)):
         assert level in JobAggregateLevel.STATEFUL
@@ -310,7 +300,7 @@ class _StatefulJobOutputsFn(beam.DoFn):
         # - key : aggregation per-unique value
         # - size : total number of times expected to see `key`
 
-        key = payload[self.keybylevel(level)]
+        key = payload[level]
         if level == JobAggregateLevel.JOB:
             # str(key) is to deal with json making all dict keys strings
             size = payload['jobtasks'][str(key)]
@@ -364,7 +354,6 @@ class JobOutput(beam.PTransform):
         self._check_pcollection(pcoll)
 
         if self.level in JobAggregateLevel.STATEFUL:
-            key = _StatefulJobOutputsFn.keybylevel(self.level)
             return (
                 pcoll
                 # TODO: Needs researching...
@@ -372,7 +361,7 @@ class JobOutput(beam.PTransform):
                 #  based on how we're going to do aggregation. I don't think
                 #  this changes anything, but perhaps this will affect the
                 #  windows?
-                | beam.Map(lambda x: (x[key], x))
+                | beam.Map(lambda x: (x[self.level], x))
                 | beam.ParDo(_StatefulJobOutputsFn(), self.level)
             )
 
