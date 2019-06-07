@@ -17,7 +17,10 @@ _logger = logging.getLogger(__name__)
 # NOTE: I don't *think* this is needed when using the DataflowRunner?
 if os.environ.get('GOOGLE_APPLICATION_CREDENTIALS') is None:
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.expanduser(
-        '~/projects/luma/.cred/dataflow-d3c95049758e.json')
+        '~/projects/luma/.cred/dataflow-d3c95049758e.json'
+        # '~/projects/luma/.cred/render-pubsub.json'
+    )
+
 
 DEFAULTS = {
     'dataflow': (

@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 import json
@@ -13,11 +14,32 @@ from apache_beam.runners.runner import PipelineResult
 from rillbeam.transforms import Log, JobOutput, JobAggregateLevel
 import rillbeam.data.farm
 
+from typing import *
+
+
+# Credentials for internal project
+if os.environ.get('GOOGLE_APPLICATION_CREDENTIALS') is None:
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.expanduser(
+        # '~/projects/luma/.cred/dataflow-d3c95049758e.json'
+        '~/projects/luma/.cred/render-pubsub.json'
+    )
+
+
+def _make_topic(project_id, name):
+    # How to create a new topic
+
+    publisher = pubsub_v1.PublisherClient()
+
+    # type: Iterator[google.cloud.pubsub_v1.types.Topic]
+    it = publisher.list_topics('projects/{}'.format(project_id))
+    print 'existing:'
+    print list(it)
+
+    publisher.create_topic(publisher.topic_path(project_id, name))
+
 
 # Google pubsub topics and subscriptions
-INPUT_TOPIC = 'projects/dataflow-241218/topics/rillbeam-inflow'
-OUTPUT_TOPIC = 'projects/dataflow-241218/topics/rillbeam-outflow'
-SUBSCRIPTION_PATH = 'projects/dataflow-241218/subscriptions/manual'
+INPUT_TOPIC = 'projects/render-1373/topics/farm-output'
 
 
 def main(options):
