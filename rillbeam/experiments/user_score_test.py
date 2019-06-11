@@ -54,11 +54,13 @@ class UserScoreTest(unittest.TestCase):
       result = (
           p | beam.Create(UserScoreTest.SAMPLE_DATA) | user_score.UserScore())
       assert_that(result, equal_to(
+          # Change this to sorted result since we want a global aggregated result and it can be randomly ordered, so
+          # the CombinePerKey used were sorting it too so that we always have matching result.
           [
               ('user1', [14, 18, 18]),
               ('user2', [2]),
-              ('user3', [8, 5, 3]),
-              ('user4', [5, 2])
+              ('user3', [3, 5, 8]),
+              ('user4', [2, 5])
           ]
       ))
 
