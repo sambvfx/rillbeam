@@ -108,7 +108,17 @@ class ExtractAndSumScore(beam.PTransform):
 
   def expand(self, pcoll):
     from rillbeam.transforms import Log
-    from rillbeam.window import CustomWindow
+    # from rillbeam.window import CustomWindow
+
+    def extend_sorted(values):
+        result = []
+        for v in values:
+            for e in v:
+                if isinstance(e, list):
+                    result.extend(e)
+                else:
+                    result.append(e)
+        return sorted(result)
 
     return (pcoll
             | beam.Map(lambda elem: (elem[self.field], elem['score']))
@@ -122,6 +132,10 @@ class ExtractAndSumScore(beam.PTransform):
             )
             | 'PreLog' >> Log()
             | 'GroupByKey' >> beam.GroupByKey()
+            | 'GroupLog' >> Log()
+            | 'GlobalWindow' >> beam.WindowInto(beam.window.GlobalWindows())
+            | 'CombineWindows' >> beam.CombinePerKey(extend_sorted)
+            | 'PostLog' >> Log()
             )
 
 # [END extract_and_sum_score]
