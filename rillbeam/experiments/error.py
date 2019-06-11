@@ -20,5 +20,5 @@ def main(options):
 
 if __name__ == '__main__':
     from rillbeam.helpers import get_options
-    pipeline_args = get_options(__name__)
+    pipeline_args, _ = get_options(__name__)
     main(pipeline_args)
