@@ -1,3 +1,17 @@
+## Setup
+
+```
+PROJECT_FULLNAME=dataflow-241218
+ROLE=pubsub.editor
+ROLE_SUFFIX=pubsub
+PROJECT_NAME=${PROJECT_FULLNAME%-*}
+SERVICE_USER=$PROJECT_NAME-$ROLE_SUFFIX
+export GOOGLE_APPLICATION_CREDENTIALS=~/dev/beam-tests/$SERVICE_USER.json
+gcloud --project $PROJECT_FULLNAME iam service-accounts create $SERVICE_USER
+gcloud projects add-iam-policy-binding $PROJECT_FULLNAME --member "serviceAccount:$SERVICE_USER@$PROJECT_FULLNAME.iam.gserviceaccount.com" --role "roles/$ROLE"
+gcloud iam service-accounts keys create $GOOGLE_APPLICATION_CREDENTIALS --iam-account $SERVICE_USER@$PROJECT_FULLNAME.iam.gserviceaccount.com
+```
+
 ## Direct Runner
 
 To run various experiments using the direct runner:
