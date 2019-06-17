@@ -35,7 +35,8 @@ DEFAULTS = {
     'flink': (
         '--save_main_session',
         '--runner', 'PortableRunner',
-        'job_endpoint', 'localhost:8099',
+        '--job_endpoint', 'localhost:8099',
+        '--environment_type', 'DOCKER',
         '--setup_file', './setup.py'
     ),
     'direct': (
@@ -82,6 +83,8 @@ def get_options(mod_name, parser=None, *args, **kwargs):
     for arg in runner_defaults:
         if arg not in pipeline_args:
             pipeline_args.append(arg)
+
+    print(' '.join(pipeline_args))
 
     return PipelineOptions(pipeline_args), known_args
 

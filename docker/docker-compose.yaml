@@ -1,9 +1,25 @@
 version: "2.1"
+
 services:
+
+  jobserver:
+    image: ${FLINK_JOBSERVER_IMAGE_NAME:-samb-docker-apache.bintray.io/beam/flink-job-server:1.8}
+    command: "--job-host=localhost --job-port=8099 --artifact-port=8098 --expansion-port=8097 --flink-master-url=jobmanager:8081"
+    ports:
+      - "8098:8098"  # ArtifactStagingService
+      - "8097:8097"  # Java ExpansionService
+      - "8099:8099"  # JobService
+    volumes:
+      - /usr/bin/docker:/bin/docker
+      - /var/run/docker.sock:/var/run/docker.sock
+
   jobmanager:
-    image: ${FLINK_DOCKER_IMAGE_NAME:-flink:1.7}
+    image: ${FLINK_DOCKER_IMAGE_NAME:-flink:1.8}
+    depends_on:
+      - jobserver
     expose:
       - "6123"
+      - "8081"
     ports:
       - "8081:8081"
     command: jobmanager
@@ -11,14 +27,17 @@ services:
       - JOB_MANAGER_RPC_ADDRESS=jobmanager
 
   taskmanager:
-    image: ${FLINK_DOCKER_IMAGE_NAME:-flink:1.7}
+    image: ${FLINK_DOCKER_IMAGE_NAME:-flink:1.8}
+    depends_on:
+      - jobmanager
     expose:
       - "6121"
       - "6122"
-    depends_on:
-      - jobmanager
     command: taskmanager
     links:
       - "jobmanager:jobmanager"
     environment:
       - JOB_MANAGER_RPC_ADDRESS=jobmanager
+    volumes:
+      - /usr/bin/docker:/bin/docker
+      - /var/run/docker.sock:/var/run/docker.sock
