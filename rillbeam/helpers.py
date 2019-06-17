@@ -194,13 +194,10 @@ def pubsub_interface2(subscription_path, input_topic, initial_data=None,
     subscriber = pubsub_v1.SubscriberClient()
     publisher = pubsub_v1.PublisherClient()
 
-    cprint('Beginning interactive pubsub session.', 'yellow',
-              attrs=['bold'])
+    cprint('Beginning interactive pubsub session.', 'yellow', attrs=['bold'])
     print()
-    cprint('Subscriber {!r}...'.format(subscription_path),
-              'yellow')
-    cprint('Publisher {!r}...'.format(input_topic),
-              'yellow')
+    cprint('Subscriber {!r}...'.format(subscription_path), 'yellow')
+    cprint('Publisher {!r}...'.format(input_topic), 'yellow')
     print()
 
     sub_future = subscriber.subscribe(
@@ -215,10 +212,9 @@ def pubsub_interface2(subscription_path, input_topic, initial_data=None,
             time.sleep(delay_seconds)
             publisher.publish(input_topic, data=msg)
 
-    cprint('Send messages to pubsub. Output messages will print '
-              'when they are received.', 'green')
-    cprint('Type \'exit\' to stop.', 'green',
-              attrs=['bold'])
+    cprint('Send messages to pubsub. Output messages will print when they are '
+           'received.', 'green')
+    cprint('Type \'exit\' to stop.', 'green', attrs=['bold'])
     print()
 
     try:

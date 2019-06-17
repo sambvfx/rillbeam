@@ -22,31 +22,53 @@ python -m rillbeam.experiments.flowbased
 
 ## Flink Runner
 
-As of this writing, apache_beam 2.12 is compatible with flink 1.7.
+As of this writing, apache_beam 2.13 is compatible with flink 1.8.
 
-To send work to flink, first read [this issue](https://issues.apache.org/jira/browse/BEAM-7379).
+You need beam source code to build docker container(s).
 
-Alternately, if homebrew is not your style, try the docker flink services:
 ```bash
-docker pull flink:1.7
-cd docker
+git clone https://github.com/apache/beam.git
+cd beam
+```
+
+Build python container:
+
+```bash
+./gradlew beam-sdks-python-container:docker
+```
+
+Build job-server container:
+
+```bash
+./gradlew beam-runners-flink-1.8-job-server-container:docker
+```
+
+Tag container with version:
+
+```bash
+docker tag $USER-docker-apache.bintray.io/beam/flink-job-server:latest $USER-docker-apache.bintray.io/beam/flink-job-server:1.8
+```
+
+Start flink and beam job-server containers:
+
+```bash
+cd rillbeam/docker
 docker-compose up
 ```
+
 
 Then:
 
 ```bash
+cd rillbeam
 source venv/bin/activate
 python -m rillbeam.experiments.flowbased --runner flink
 ```
 
-Note: if using a single node flink cluster, you must increase the number of 
-task slots per manager in `conf/flink-conf.yaml` in order to run these examples:
-
-```yaml
-# The number of task slots that each TaskManager offers. Each slot runs one parallel pipeline.
-
-taskmanager.numberOfTaskSlots: 8
+> Note: You can increase the number of taskmanager (workers) by doing: 
+```bash
+cd rillbeam/docker
+docker-compose scale taskmanager=4
 ```
 
 ## GCP Dataflow Runner

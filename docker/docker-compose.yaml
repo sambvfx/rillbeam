@@ -10,7 +10,7 @@ services:
       - "8097:8097"  # Java ExpansionService
       - "8099:8099"  # JobService
     volumes:
-      - /usr/bin/docker:/bin/docker
+      - ${DOCKER_BIN:-/usr/bin/docker}:/bin/docker
       - /var/run/docker.sock:/var/run/docker.sock
 
   jobmanager:
@@ -39,5 +39,5 @@ services:
     environment:
       - JOB_MANAGER_RPC_ADDRESS=jobmanager
     volumes:
-      - /usr/bin/docker:/bin/docker
+      - ${DOCKER_BIN:-/usr/bin/docker}:/bin/docker
       - /var/run/docker.sock:/var/run/docker.sock
