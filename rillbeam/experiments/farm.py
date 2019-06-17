@@ -19,10 +19,11 @@ from typing import *
 
 # Credentials for internal project
 if os.environ.get('GOOGLE_APPLICATION_CREDENTIALS') is None:
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.expanduser(
-        # '~/projects/luma/.cred/dataflow-d3c95049758e.json'
-        '~/projects/luma/.cred/render-pubsub.json'
-    )
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = str(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        '.cred',
+        'render-pubsub.json'
+    ))
 
 
 def _make_topic(project_id, name):
