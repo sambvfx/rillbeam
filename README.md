@@ -46,8 +46,24 @@ Build job-server container:
 Tag container with version:
 
 ```bash
-docker tag $USER-docker-apache.bintray.io/beam/flink-job-server:latest $USER-docker-apache.bintray.io/beam/flink-job-server:1.8
+docker tag $USER-docker-apache.bintray.io/beam/flink-job-server:latest flink-job-server:1.8
 ```
+
+Build beam-flink container:
+
+```bash
+cd rillbeam/docker
+docker build -t beam-flink:1.8 -f Dockerfile .
+```
+
+Add this to your `~/.bashrc_profile` (or similar).
+
+```bash
+DOCKER_BIN=`which docker`
+```
+
+Start a fresh shell to pick this up.
+
 
 Start flink and beam job-server containers:
 
