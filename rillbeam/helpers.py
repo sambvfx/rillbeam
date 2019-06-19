@@ -23,6 +23,9 @@ if os.environ.get('GOOGLE_APPLICATION_CREDENTIALS') is None:
     ))
 
 
+REGISTRY_URL = os.environ.get('DOCKER_REGISTRY_URL', 'dockereg:5000')
+
+
 DEFAULTS = {
     'dataflow': (
         '--save_main_session',
@@ -37,8 +40,9 @@ DEFAULTS = {
         '--save_main_session',
         '--runner', 'PortableRunner',
         '--job_endpoint', 'localhost:8099',
+        '--setup_file', './setup.py',
         '--environment_type', 'DOCKER',
-        '--setup_file', './setup.py'
+        '--environment_config', '{}/beam/python:2.13'.format(REGISTRY_URL)
     ),
     'direct': (
         '--save_main_session',

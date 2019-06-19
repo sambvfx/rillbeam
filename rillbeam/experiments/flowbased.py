@@ -7,13 +7,15 @@ from rillbeam.transforms import SleepFn, Log
 
 
 def main(options):
-    with beam.Pipeline(options=options) as pipe:
-        (
-            pipe
-            | 'Init' >> beam.Create(range(10))
-            | 'Sleep' >> beam.ParDo(SleepFn(), duration=1.0)
-            | 'Log' >> Log()
-        )
+    pipe = beam.Pipeline(options=options)
+    (
+        pipe
+        | 'Init' >> beam.Create(range(10))
+        | 'Sleep' >> beam.ParDo(SleepFn(), duration=1.0)
+        | 'Log' >> Log()
+    )
+    result = pipe.run()
+    result.wait_until_finish()
 
 
 if __name__ == '__main__':

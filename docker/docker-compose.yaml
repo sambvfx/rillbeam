@@ -1,22 +1,39 @@
-version: "2.1"
+version: '3.7'
+
+networks:
+  back:
+
 
 services:
 
+# Does not work stand-alone...
+# LINUX:
+#   docker run --network=host -v `which docker`:/bin/docker -v /var/run/docker.sock:/var/run/docker.sock ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.13 --job-host=localhost --job-port=8099 --artifact-port=8098 --expansion-port=8097 --flink-master-url=localhost:8081
+# OSX:
+#   docker run -e DOCKER_MAC_CONTAINER=1 -p 8098:8098 -p 8097:8097 -p 8099:8099 -p 8100-8200:8100-8200 -v `which docker`:/bin/docker -v /var/run/docker.sock:/var/run/docker.sock ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.13 --job-host=localhost --job-port=8099 --artifact-port=8098 --expansion-port=8097 --flink-master-url=localhost:8081
+
   jobserver:
-    image: ${FLINK_JOBSERVER_IMAGE_NAME:-flink-job-server:1.8}
+    image: ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.13
     command: "--job-host=localhost --job-port=8099 --artifact-port=8098 --expansion-port=8097 --flink-master-url=jobmanager:8081"
+    networks:
+      - back
     ports:
       - "8098:8098"  # ArtifactStagingService
       - "8097:8097"  # Java ExpansionService
       - "8099:8099"  # JobService
+      - "8100-8200:8100-8200"  # harness_port_range
     volumes:
       - ${DOCKER_BIN:-/usr/bin/docker}:/bin/docker
       - /var/run/docker.sock:/var/run/docker.sock
+      # used to pass artifacts
+      - /tmp:/tmp
 
   jobmanager:
-    image: ${FLINK_DOCKER_IMAGE_NAME:-beam-flink:1.8}
-    depends_on:
-      - jobserver
+    image: ${DOCKER_REGISTRY_URL}/beam/beam-flink:2.13-1.8
+#    depends_on:
+#      - jobserver
+    networks:
+      - back
     expose:
       - "6123"
       - "8081"
@@ -27,9 +44,11 @@ services:
       - JOB_MANAGER_RPC_ADDRESS=jobmanager
 
   taskmanager:
-    image: ${FLINK_DOCKER_IMAGE_NAME:-beam-flink:1.8}
+    image: ${DOCKER_REGISTRY_URL}/beam/beam-flink:2.13-1.8
     depends_on:
       - jobmanager
+    networks:
+      - back
     expose:
       - "6121"
       - "6122"
@@ -41,3 +60,5 @@ services:
     volumes:
       - ${DOCKER_BIN:-/usr/bin/docker}:/bin/docker
       - /var/run/docker.sock:/var/run/docker.sock
+      # used to pass artifacts
+      - /tmp:/tmp

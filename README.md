@@ -31,36 +31,36 @@ git clone https://github.com/apache/beam.git
 cd beam
 ```
 
-Build python container:
+Flink requires pulling the python sdk image from a docker registry. At luma we use dockereg:5000/, locally you need to [start your own](https://docs.docker.com/registry/deploying/).
+
+> TIP: Add `DOCKER_REGISTRY_URL="localhost:5000"` to your _~/.bashrc_profile_.
+
+Build the python sdk container.
 
 ```bash
-./gradlew beam-sdks-python-container:docker
+./gradlew beam-sdks-python-container:docker -P docker-repository-root="${DOCKER_REGISTRY_URL}/beam" -P docker-tag=2.13
+```
+
+Upload sdk python container to the registry.
+
+```bash
+docker push ${DOCKER_REGISTRY_URL}/beam/beam-python:2.13
 ```
 
 Build job-server container:
 
 ```bash
-./gradlew beam-runners-flink-1.8-job-server-container:docker
-```
-
-Tag container with version:
-
-```bash
-docker tag $USER-docker-apache.bintray.io/beam/flink-job-server:latest flink-job-server:1.8
+./gradlew beam-runners-flink-1.8-job-server-container:docker -P docker-repository-root="${DOCKER_REGISTRY_URL}/beam" -P docker-tag=2.13
 ```
 
 Build beam-flink container:
 
 ```bash
 cd rillbeam/docker
-docker build -t beam-flink:1.8 -f Dockerfile .
+docker build -t ${DOCKER_REGISTRY_URL}/beam/beam-flink:2.13-1.8 -f Dockerfile .
 ```
 
-Add this to your `~/.bashrc_profile` (or similar).
-
-```bash
-DOCKER_BIN=`which docker`
-```
+> TIP: Add `DOCKER_BIN=\`which docker\` ` to your _~/.bashrc_profile_.
 
 Start a fresh shell to pick this up.
 
