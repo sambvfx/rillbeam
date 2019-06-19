@@ -5,8 +5,6 @@ import attr
 
 @attr.s
 class FarmPayload(object):
-    source = attr.ib()
-
     graphid = attr.ib()
 
     # {jobid: #tasks}
@@ -18,10 +16,9 @@ class FarmPayload(object):
     output = attr.ib()
 
 
-def gen_farm_messages(source=None, graphs=1, jobs=2, tasks=3, outputs=2):
+def gen_farm_messages(graphs=1, jobs=2, tasks=3, outputs=2):
     # example payload structure...
     # {
-    #     'source': Any
     #     'graphid': 0,
     #     'jobtasks': {0: 3, 1: 3},
     #     'jobid': 0,
@@ -55,7 +52,6 @@ def gen_farm_messages(source=None, graphs=1, jobs=2, tasks=3, outputs=2):
                     ))
                 data.append(
                     FarmPayload(
-                        source=source,
                         graphid=graph,
                         jobtasks=jobtasks,
                         jobid=job,
@@ -65,7 +61,8 @@ def gen_farm_messages(source=None, graphs=1, jobs=2, tasks=3, outputs=2):
 
     # random yield order
     while data:
-        # time.sleep(min(random.random() / random.random(), 2.0))
+        import time
+        time.sleep(min(random.random() / random.random(), 2.0))
         index = random.randrange(len(data))
         payload = data[index]
         del data[index]

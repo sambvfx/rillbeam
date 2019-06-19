@@ -204,7 +204,8 @@ class SyncFn(beam.DoFn):
         values.append(value)
 
         if len(values) == self.size:
-            del cache[key]
+            if key in cache:
+                del cache[key]
             yield tuple(values)
         else:
             cache[key] = values
@@ -372,3 +373,71 @@ class JobOutput(beam.PTransform):
             )
         else:
             raise NotImplementedError
+
+
+@beam.typehints.with_input_types(element=beam.io.gcp.pubsub.PubsubMessage,
+                                 filters=Dict[str, Any])
+@beam.typehints.with_output_types(List[Dict[str, Any]])
+class _FilterPubsubMsgFn(beam.DoFn):
+
+    def process(self, element, filters):
+        import json
+
+        data = element.attributes
+        should_filter = False
+
+        def is_subset(v1, v2):
+            from collections import Iterable
+
+            if not isinstance(v1, Iterable):
+                v1 = [v1]
+
+            if not isinstance(v2, Iterable):
+                v2 = [v2]
+
+            return set(v1).issubset(set(v2))
+
+        for k, filter_v in filters.iteritems():
+            if k not in data:
+                should_filter = True
+                break
+            data_v = data[k]
+            if not is_subset(filter_v, data_v):
+                should_filter = True
+                break
+
+        if not should_filter:
+            yield json.loads(element.data)
+
+
+
+class FilterPubsubMessages(beam.PTransform):
+    """
+    Transform to filter to relevant pubsub messages.
+
+    Graph authors can provide a dictionary of attributes to filter. When
+    no filters are provided, load every message.
+
+    This is expecting an incoming pcollection of `beam.io.gcp.pubsub.PubsubMessage`.
+    """
+
+    def __init__(self, filters=None, **kwargs):
+        super(FilterPubsubMessages, self).__init__(**kwargs)
+        self.filters = filters
+
+    def expand(self, pcoll):
+        import json
+
+        self._check_pcollection(pcoll)
+
+        if self.filters:
+            return (
+                pcoll
+                | beam.ParDo(_FilterPubsubMsgFn(), self.filters)
+            )
+        else:
+            return (
+                pcoll
+                | beam.Map(lambda x: json.loads(x.data))
+            )
+

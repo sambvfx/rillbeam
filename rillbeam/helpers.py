@@ -56,6 +56,9 @@ def get_parser():
                         type=str,
                         default='direct',
                         choices=['direct', 'flink', 'dataflow'])
+    parser.add_argument('--subscription',
+                        type=str,
+                        )
     return parser
 
 
