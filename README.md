@@ -44,7 +44,7 @@ Build the python sdk container.
 Upload sdk python container to the registry.
 
 ```bash
-docker push ${DOCKER_REGISTRY_URL}/beam/beam-python:2.13
+docker push ${DOCKER_REGISTRY_URL}/beam/python:2.13
 ```
 
 Build job-server container:
@@ -52,18 +52,16 @@ Build job-server container:
 ```bash
 ./gradlew beam-runners-flink-1.8-job-server-container:docker -P docker-repository-root="${DOCKER_REGISTRY_URL}/beam" -P docker-tag=2.13
 ```
+```bash
+docker push ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.13
+```
 
-Build beam-flink container:
+Build docker-flink container:
 
 ```bash
 cd rillbeam/docker
-docker build -t ${DOCKER_REGISTRY_URL}/beam/beam-flink:2.13-1.8 -f Dockerfile .
+docker build . -t ${DOCKER_REGISTRY_URL}/beam/docker-flink:1.8 --build-arg DOCKER_GID_HOST=$(grep docker /etc/group | cut -d ':' -f 3)
 ```
-
-> TIP: Add `DOCKER_BIN=\`which docker\` ` to your _~/.bashrc_profile_.
-
-Start a fresh shell to pick this up.
-
 
 Start flink and beam job-server containers:
 
