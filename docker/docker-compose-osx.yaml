@@ -1,0 +1,55 @@
+# network_mode: "host" does not work on OSX...
+# WIP: Does not work at the moment... locks up when it tries to start docker
+#   container inside the taskmanager flink task.
+
+version: '2.1'
+
+volumes:
+  beam-artifact-staging-volume:
+
+services:
+
+  jobserver:
+    # This is to host the service:
+    #   ./gradlew :beam-runners-flink-1.8-job-server:runShadow -P flinkMasterUrl=localhost:8081
+    image: ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.13
+    command: "--flink-master-url=jobmanager:8081"
+    expose:
+      - "8100-8200"  # harness_port_range
+    ports:
+      - "8098:8098"  # ArtifactStagingService
+      - "8097:8097"  # Java ExpansionService
+      - "8099:8099"  # JobService
+    links:
+      - "jobmanager:jobmanager"
+    volumes:
+      - beam-artifact-staging-volume:/tmp/beam-artifact-staging
+
+  jobmanager:
+    image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:1.8
+    expose:
+      - "6123"
+      - "8081"
+      - "8100-8200"  # harness_port_range
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+
+  taskmanager:
+    image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:1.8
+    depends_on:
+      - jobmanager
+    expose:
+      - "6121"
+      - "6122"
+      - "8100-8200"  # harness_port_range
+    command: taskmanager
+    links:
+      - "jobmanager:jobmanager"
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - beam-artifact-staging-volume:/tmp/beam-artifact-staging
