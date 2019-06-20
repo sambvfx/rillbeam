@@ -26,7 +26,7 @@ services:
       - beam-artifact-staging-volume:/tmp/beam-artifact-staging
 
   jobmanager:
-    image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:1.8
+    image: flink:1.8
     expose:
       - "6123"
       - "8081"
