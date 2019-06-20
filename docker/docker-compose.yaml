@@ -1,39 +1,24 @@
 version: '2.1'
 
+volumes:
+  beam-artifacts-staging-volume:
 
 services:
 
-# Does not work stand-alone...
-# LINUX:
-#   docker run --network=host -v `which docker`:/bin/docker -v /var/run/docker.sock:/var/run/docker.sock -v /tmp:/tmp ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.13 --job-host=localhost --job-port=8099 --artifact-port=8098 --expansion-port=8097 --flink-master-url=localhost:8081
-# OSX:
-#   docker run -e DOCKER_MAC_CONTAINER=1 -p 8098:8098 -p 8097:8097 -p 8099:8099 -p 8100-8200:8100-8200 -v `which docker`:/bin/docker -v /var/run/docker.sock:/var/run/docker.sock -v /tmp:/tmp ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.13 --job-host=localhost --job-port=8099 --artifact-port=8098 --expansion-port=8097 --flink-master-url=localhost:8081
-
   jobserver:
-    # This is to replace:
+    # This is to host the service:
     #   ./gradlew :beam-runners-flink-1.8-job-server:runShadow -P flinkMasterUrl=localhost:8081
     image: ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.13
     command: "--flink-master-url=localhost:8081"
     # need use host networking for the SDK harness container to reach to taskmanager under localhost:<random-port>
     network_mode: "host"
-#    ports:
-#      - "8098:8098"  # ArtifactStagingService
-#      - "8097:8097"  # Java ExpansionService
-#      - "8099:8099"  # JobService
-#      - "8100-8200:8100-8200"  # harness_port_range
     volumes:
-      - /tmp:/tmp  # to debug artifacts
+      - beam-artifacts-staging-volume:/tmp/beam-artifact-staging
 
   jobmanager:
-    image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:1.8
+    image: flink:1.8
     # need use host networking for the SDK harness container to reach to taskmanager under localhost:<random-port>
     network_mode: "host"
-#    expose:
-#      - "6123"
-#      - "8081"
-#      - "22"
-#    ports:
-#      - "8081:8081"
     command: jobmanager
     environment:
       - JOB_MANAGER_RPC_ADDRESS=localhost
@@ -44,16 +29,9 @@ services:
       - jobmanager
     # need use host networking for the SDK harness container to reach to taskmanager under localhost:<random-port>
     network_mode: "host"
-#    ports:
-#      - "22"
-#    expose:
-#      - "6121"
-#      - "6122"
     command: taskmanager
-#    links:
-#      - "jobmanager:jobmanager"
     environment:
       - JOB_MANAGER_RPC_ADDRESS=localhost
     volumes:
-#      - ${DOCKER_BIN:-/usr/bin/docker}:/bin/docker
       - /var/run/docker.sock:/var/run/docker.sock
+      - beam-artifacts-staging-volume:/tmp/beam-artifact-staging
