@@ -9,6 +9,7 @@ import logging
 from termcolor import cprint
 
 from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.portability import python_urns
 
 
 _logger = logging.getLogger(__name__)
@@ -42,10 +43,19 @@ DEFAULTS = {
         '--job_endpoint', 'localhost:8099',
         '--setup_file', './setup.py',
         '--environment_type', 'DOCKER',
-        '--environment_config', '{}/beam/python:2.13'.format(REGISTRY_URL)
+        '--environment_config', '{}/beam/python:latest'.format(REGISTRY_URL)
     ),
     'direct': (
         '--save_main_session',
+    ),
+    'local': (
+        '--save_main_session',
+        '--runner', 'PortableRunner',
+        '--job_endpoint', 'localhost:8199',
+        '--environment_type', python_urns.SUBPROCESS_SDK,
+        '--environment_config',
+        b'{} -m apache_beam.runners.worker.sdk_worker_main'.format(
+            sys.executable.encode('ascii')),
     )
 }
 
@@ -55,10 +65,7 @@ def get_parser():
     parser.add_argument('--runner',
                         type=str,
                         default='direct',
-                        choices=['direct', 'flink', 'dataflow'])
-    parser.add_argument('--subscription',
-                        type=str,
-                        )
+                        choices=DEFAULTS.keys())
     return parser
 
 
