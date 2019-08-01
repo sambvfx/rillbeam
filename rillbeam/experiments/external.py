@@ -2,7 +2,8 @@ import apache_beam as beam
 
 from rillbeam.transforms import Log
 
-
+# To test with the portibility framework, you can run everything within python!
+#
 # 1) Start local job server:
 #   python -m apache_beam.runners.portability.local_job_service_main -p 8199
 #
