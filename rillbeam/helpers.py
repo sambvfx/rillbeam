@@ -246,3 +246,25 @@ def pubsub_interface2(subscription_path, input_topic, initial_data=None,
                 publisher.publish(input_topic, data=msg)
     finally:
         sub_future.cancel()
+
+def write_pipeline_text(pipe, mod_name):
+    import google.protobuf.text_format
+    pipe_proto = pipe.to_runner_api()
+    jobname = get_jobname(mod_name)
+    s = google.protobuf.text_format.MessageToString(pipe_proto, as_utf8=True)
+    filename = jobname + '.txt'
+    with open(filename, 'w') as f:
+        f.write(s)
+
+
+def write_pipeline_svg(pipe, mod_name):
+    from apache_beam.runners.interactive.display.pipeline_graph_renderer import PydotRenderer
+    from apache_beam.runners.interactive.display.pipeline_graph import PipelineGraph
+
+    jobname = get_jobname(mod_name)
+    filename = jobname + '.svg'
+
+    s = PydotRenderer().render_pipeline_graph(PipelineGraph(pipe))
+
+    with open(filename, 'w') as f:
+        f.write(s)
