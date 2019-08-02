@@ -24,11 +24,52 @@ python -m rillbeam.experiments.flowbased
 
 As of this writing, apache_beam 2.13 is compatible with flink 1.8.
 
+### Using Homebrew
+
+Install and start [docker](https://docs.docker.com/v17.12/docker-for-mac/install/).
+
+Install flink 1.8:
+
+```bash
+brew install flink
+```
+
+Start flink:
+
+```bash
+/usr/local/Cellar/apache-flink/1.8.0/libexec/bin/start-cluster.sh
+```
+
+Get the beam source:
+
+```bash
+git clone https://github.com/apache/beam.git
+cd beam
+git checkout release-2.13.0
+```
+
+Run the job server:
+
+```bash
+./gradlew beam-runners-flink-1.8-job-server:runShadow -PflinkMasterUrl=localhost:8081
+```
+
+Then:
+
+```bash
+cd rillbeam
+source venv/bin/activate
+python -m rillbeam.experiments.flowbased --runner flink
+```
+
+### Using Docker
+
 You need beam source code to build docker container(s).
 
 ```bash
 git clone https://github.com/apache/beam.git
 cd beam
+git checkout release-2.13.0
 ```
 
 Flink requires pulling the python sdk image from a docker registry. At luma we use dockereg:5000/, locally you need to [start your own](https://docs.docker.com/registry/deploying/).
@@ -69,7 +110,6 @@ Start flink and beam job-server containers:
 cd rillbeam/docker
 docker-compose up
 ```
-
 
 Then:
 
