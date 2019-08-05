@@ -1,4 +1,3 @@
-import os
 import apache_beam as beam
 
 

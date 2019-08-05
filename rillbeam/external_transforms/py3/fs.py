@@ -5,6 +5,7 @@ import apache_beam as beam
 def touch(f):
     with open(f, 'a'):
         os.utime(f, None)
+    return f
 
 
 @beam.PTransform.register_urn('touch', None)
