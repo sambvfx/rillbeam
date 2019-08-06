@@ -39,3 +39,6 @@ def cleanup(unused_signum, unused_frame):
 
 signal.signal(signal.SIGTERM, cleanup)
 signal.signal(signal.SIGINT, cleanup)
+
+if __name__ == '__main__':
+    run()
