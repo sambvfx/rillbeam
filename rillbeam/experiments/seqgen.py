@@ -12,7 +12,7 @@ from rillbeam.transforms import Log
 # 3) Start runShadow (includes job server and expansion service):
 #   ./gradlew -p runners/flink/1.8/job-server runShadow -P flinkMasterUrl=localhost:8081
 # 4) Submit job:
-#   python -m rillbeam.experiments.seqgen --runners flink
+#   python -m rillbeam.experiments.seqgen --defaults flink
 
 
 def main(options):

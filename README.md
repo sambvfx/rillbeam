@@ -59,7 +59,7 @@ Then:
 ```bash
 cd rillbeam
 source venv/bin/activate
-python -m rillbeam.experiments.flowbased --runner flink
+python -m rillbeam.experiments.flowbased --defaults flink
 ```
 
 ### Using Docker
@@ -116,7 +116,7 @@ Then:
 ```bash
 cd rillbeam
 source venv/bin/activate
-python -m rillbeam.experiments.flowbased --runner flink
+python -m rillbeam.experiments.flowbased --defaults flink
 ```
 
 > Note: You can increase the number of taskmanager (workers) by doing: 
@@ -129,5 +129,5 @@ docker-compose scale taskmanager=4
 
 ```bash
 source venv/bin/activate
-python -m rillbeam.experiments.flowbased --runner dataflow
+python -m rillbeam.experiments.flowbased --defaults dataflow
 ```

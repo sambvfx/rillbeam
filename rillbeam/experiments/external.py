@@ -11,7 +11,7 @@ from rillbeam.transforms import Log
 #   python rillbeam/external_transforms/server.py -p 8197
 #
 # 3) Run using "local" runner:
-#   python -m rillbeam.experiments.external --runner local
+#   python -m rillbeam.experiments.external --defaults local
 
 
 def main(options):

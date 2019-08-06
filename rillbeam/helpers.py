@@ -62,7 +62,7 @@ DEFAULTS = {
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--runner',
+    parser.add_argument('--defaults',
                         type=str,
                         default='direct',
                         choices=DEFAULTS.keys())
@@ -80,7 +80,7 @@ def get_options(mod_name, parser=None, *args, **kwargs):
 
     known_args, pipeline_args = parser.parse_known_args()
 
-    runner_defaults = DEFAULTS[known_args.runner]
+    runner_defaults = DEFAULTS[known_args.defaults]
 
     if '--job_name' not in pipeline_args:
         pipeline_args.extend(['--job_name', get_jobname(mod_name)])
