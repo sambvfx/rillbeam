@@ -8,7 +8,7 @@ from rillbeam.transforms import Log
 #   python -m apache_beam.runners.portability.local_job_service_main -p 8199
 #
 # 2) Start expansion service:
-#   python rillbeam/external_transforms/server.py -p 8197
+#   python -m rillbeam.external_transforms.py2 -p 8197
 #
 # 3) Run using "local" runner:
 #   python -m rillbeam.experiments.external --defaults local
