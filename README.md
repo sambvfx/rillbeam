@@ -1,4 +1,6 @@
-## Setup
+## Setup GCP
+
+This is only required if using GCP pubsub streaming examples.
 
 ```
 PROJECT_FULLNAME=dataflow-241218
@@ -31,7 +33,7 @@ Install and start [docker](https://docs.docker.com/v17.12/docker-for-mac/install
 Install flink 1.8:
 
 ```bash
-brew install flink
+brew install apache-flink
 ```
 
 Start flink:
@@ -58,7 +60,9 @@ Then:
 
 ```bash
 cd rillbeam
-source venv/bin/activate
+python -m virtualenv .venv
+source .venv/bin/activate
+pip install apache_beam[gcp]==2.13.0
 python -m rillbeam.experiments.flowbased --defaults flink
 ```
 
