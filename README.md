@@ -63,6 +63,7 @@ cd rillbeam
 python -m virtualenv .venv
 source .venv/bin/activate
 pip install apache_beam[gcp]==2.13.0
+pip install -r requirements.txt
 python -m rillbeam.experiments.flowbased --defaults flink
 ```
 
