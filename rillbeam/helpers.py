@@ -43,7 +43,7 @@ DEFAULTS = {
         '--job_endpoint', 'localhost:8099',
         '--setup_file', './setup.py',
         '--environment_type', 'DOCKER',
-        '--environment_config', '{}/beam/python:latest'.format(REGISTRY_URL)
+        '--environment_config', '{}/beam/python:2.14.0.luma01'.format(REGISTRY_URL)
     ),
     'direct': (
         '--save_main_session',

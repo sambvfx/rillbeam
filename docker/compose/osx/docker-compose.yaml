@@ -4,35 +4,34 @@
 
 version: '2.1'
 
-volumes:
-  beam-artifact-staging-volume:
+networks:
+  backend:
+    name: osx_backend
 
 services:
 
   jobserver:
     # This is to host the service:
-    #   ./gradlew :beam-runners-flink-1.8-job-server:runShadow -P flinkMasterUrl=localhost:8081
-    image: ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.13
+    #   ./gradlew -p runners/flink/1.8/job-server runShadow -P flinkMasterUrl=localhost:8081
+    image: ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.14.0.luma01
     command: "--flink-master-url=jobmanager:8081"
-    expose:
-      - "8100-8200"  # harness_port_range
+    networks:
+      - backend
     ports:
       - "8098:8098"  # ArtifactStagingService
       - "8097:8097"  # Java ExpansionService
       - "8099:8099"  # JobService
-    links:
-      - "jobmanager:jobmanager"
     volumes:
-      - beam-artifact-staging-volume:/tmp/beam-artifact-staging
+      - /tmp/beam-artifact-staging:/tmp/beam-artifact-staging
 
   jobmanager:
     image: flink:1.8
-    expose:
-      - "6123"
-      - "8081"
-      - "8100-8200"  # harness_port_range
+    networks:
+      - backend
     ports:
       - "8081:8081"
+    expose:
+      - "6123"
     command: jobmanager
     environment:
       - JOB_MANAGER_RPC_ADDRESS=jobmanager
@@ -41,15 +40,17 @@ services:
     image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:1.8
     depends_on:
       - jobmanager
+    networks:
+      - backend
+    ports:
+      - "8100-8200:8100-8200"
     expose:
       - "6121"
       - "6122"
-      - "8100-8200"  # harness_port_range
     command: taskmanager
-    links:
-      - "jobmanager:jobmanager"
     environment:
       - JOB_MANAGER_RPC_ADDRESS=jobmanager
+      - DOCKER_MAC_CONTAINER=1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - beam-artifact-staging-volume:/tmp/beam-artifact-staging
+      - /tmp/beam-artifact-staging:/tmp/beam-artifact-staging

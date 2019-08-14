@@ -1,7 +1,6 @@
 import os
 import time
 import logging
-import json
 
 from termcolor import cprint, colored
 
@@ -9,11 +8,11 @@ from google.cloud import pubsub_v1
 from google.api_core.exceptions import NotFound
 
 import apache_beam as beam
+from apache_beam.io.external.gcp.pubsub import ReadFromPubSub
 from apache_beam.runners.runner import PipelineState
 from apache_beam.runners.runner import PipelineResult
 
-from rillbeam.transforms import Log, JobOutput, JobAggregateLevel, FilterPubsubMessages
-import rillbeam.data.farm
+from rillbeam.transforms import Log
 
 from typing import *
 
@@ -62,42 +61,17 @@ def get_subscription(topic_path, subscription_name):
 
 def main(pipeline_options, args):
 
-    farm_kw = (
-        ('graphs', 1),
-        ('jobs', 2),
-        ('tasks', 3),
-        ('outputs', 4),
-    )
-
     pipe = beam.Pipeline(options=pipeline_options)
 
-    subscription = get_subscription(INPUT_TOPIC, 'farm')
+    subscription = get_subscription(INPUT_TOPIC, 'pubsub-test')
 
-    feed = (
+    (
         pipe
-        | 'PubSubInflow' >> beam.io.ReadFromPubSub(subscription=subscription,
-                                                   with_attributes=True)
-        | 'FilterPubsubMessage' >> FilterPubsubMessages(filters={'tags': __name__})
+        | 'PubSubInflow' >> ReadFromPubSub(subscription=subscription)
         | 'RawFeed' >> Log(color=('white', ['dark']))
     )
 
-    (
-        feed
-        | JobAggregateLevel.TASK >> JobOutput(JobAggregateLevel.TASK)
-        | 'PerTask' >> Log(color=('yellow', ['bold']))
-    )
-
-    (
-        feed
-        | JobAggregateLevel.JOB >> JobOutput(JobAggregateLevel.JOB)
-        | 'PerJob' >> Log(color=('blue', ['bold']))
-    )
-
-    (
-        feed
-        | JobAggregateLevel.GRAPH >> JobOutput(JobAggregateLevel.GRAPH)
-        | 'PerGraph' >> Log(color=('green', ['bold']))
-    )
+    import ipdb; ipdb.set_trace()
 
     result = pipe.run()  # type: PipelineResult
     time.sleep(10)
@@ -109,14 +83,8 @@ def main(pipeline_options, args):
            'red', attrs=['bold'])
     print
 
-    cprint('Generating farm jobs:', 'yellow')
-    for k, v in farm_kw:
-        print '  {}={}'.format(k, colored(repr(v), 'white', attrs=['bold']))
-    print
-
     publisher = pubsub_v1.PublisherClient()
-    for payload in rillbeam.data.farm.gen_farm_messages(**dict(farm_kw)):
-        publisher.publish(INPUT_TOPIC, data=bytes(json.dumps(payload)), tags=__name__)
+    publisher.publish(INPUT_TOPIC, data=b'test')
 
     try:
         result.wait_until_finish()

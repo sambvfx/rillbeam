@@ -1,4 +1,6 @@
-FROM flink:1.8
+ARG FLINK_VERSION=1.8
+
+FROM flink:$FLINK_VERSION
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y libltdl7
 
@@ -17,3 +19,7 @@ RUN apt-get update; \
   apt-get -y install docker-ce
 
 RUN usermod -aG docker flink
+
+COPY ./dockerown.sh /dockerown.sh
+
+ENTRYPOINT ["/dockerown.sh"]

@@ -84,36 +84,35 @@ Flink requires pulling the python sdk image from a docker registry. At luma we u
 Build the python sdk container.
 
 ```bash
-./gradlew beam-sdks-python-container:docker -P docker-repository-root="${DOCKER_REGISTRY_URL}/beam" -P docker-tag=2.13
+./gradlew -p sdks/python/container docker -P docker-repository-root="${DOCKER_REGISTRY_URL}/beam" -P docker-tag=2.14.0.luma01
 ```
 
 Upload sdk python container to the registry.
 
 ```bash
-docker push ${DOCKER_REGISTRY_URL}/beam/python:2.13
+docker push ${DOCKER_REGISTRY_URL}/beam/python:2.14.0.luma01
 ```
 
 Build job-server container:
 
 ```bash
-./gradlew beam-runners-flink-1.8-job-server-container:docker -P docker-repository-root="${DOCKER_REGISTRY_URL}/beam" -P docker-tag=2.13
+./gradlew -p runners/flink/1.8/job-server-container docker -P docker-repository-root="${DOCKER_REGISTRY_URL}/beam" -P docker-tag=2.14.0.luma01
 ```
 ```bash
-docker push ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.13
+docker push ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.14.0.luma01
 ```
 
 Build docker-flink container:
 
 ```bash
-cd rillbeam/docker
-docker build . -t ${DOCKER_REGISTRY_URL}/beam/docker-flink:1.8 --build-arg DOCKER_GID_HOST=$(grep docker /etc/group | cut -d ':' -f 3)
+rillbeam/docker/docker-flink/build.sh
 ```
 
 Start flink and beam job-server containers:
 
 ```bash
-cd rillbeam/docker
-docker-compose up
+cd rillbeam/docker/osx
+docker-compose pull && docker-compose up
 ```
 
 Then:
@@ -126,7 +125,7 @@ python -m rillbeam.experiments.flowbased --defaults flink
 
 > Note: You can increase the number of taskmanager (workers) by doing: 
 ```bash
-cd rillbeam/docker
+cd rillbeam/docker/osx
 docker-compose scale taskmanager=4
 ```
 
@@ -136,3 +135,6 @@ docker-compose scale taskmanager=4
 source venv/bin/activate
 python -m rillbeam.experiments.flowbased --defaults dataflow
 ```
+
+
+# LOCAL DEV
