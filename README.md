@@ -24,7 +24,7 @@ python -m rillbeam.experiments.flowbased
 
 ## Flink Runner
 
-As of this writing, apache_beam 2.13 is compatible with flink 1.8.
+As of this writing, apache_beam 2.14 is compatible with flink 1.8.
 
 ### Using Homebrew
 
@@ -62,8 +62,8 @@ Then:
 cd rillbeam
 python -m virtualenv .venv
 source .venv/bin/activate
-pip install apache_beam[gcp]==2.13.0
-pip install -r requirements.txt
+pip install -U apache_beam[gcp]==2.14.0
+pip install -U -r requirements.txt
 python -m rillbeam.experiments.flowbased --defaults flink
 ```
 
@@ -74,7 +74,7 @@ You need beam source code to build docker container(s).
 ```bash
 git clone https://github.com/apache/beam.git
 cd beam
-git checkout release-2.13.0
+git checkout release-2.14.0
 ```
 
 Flink requires pulling the python sdk image from a docker registry. At luma we use dockereg:5000/, locally you need to [start your own](https://docs.docker.com/registry/deploying/).
@@ -136,5 +136,15 @@ source venv/bin/activate
 python -m rillbeam.experiments.flowbased --defaults dataflow
 ```
 
+# Development Tips
 
-# LOCAL DEV
+## Python
+
+I use a different virtual env for development vs testing stock beam.
+
+Note: Running this from a shell with a venv worked, but running the task from IntelliJ did not.
+
+```
+./gradlew :sdks:python:build
+pip install sdks/python/build/apache-beam-2.16.0.dev0.zip[gcp]
+```
