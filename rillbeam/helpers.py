@@ -24,7 +24,15 @@ if os.environ.get('GOOGLE_APPLICATION_CREDENTIALS') is None:
     ))
 
 
-REGISTRY_URL = os.environ.get('DOCKER_REGISTRY_URL', 'dockereg:5000')
+def get_docker_reg():
+    import socket
+    fqdn = socket.getfqdn()
+    reg = os.environ.get('DOCKER_REGISTRY_URL')
+    if reg is not None:
+        return reg
+    if 'luma' in fqdn:
+        return 'dockereg:5000'
+    return 'localhost:5000'
 
 
 DEFAULTS = {
@@ -43,7 +51,7 @@ DEFAULTS = {
         '--job_endpoint', 'localhost:8099',
         '--setup_file', './setup.py',
         '--environment_type', 'DOCKER',
-        '--environment_config', '{}/beam/python:2.14.0.luma01'.format(REGISTRY_URL)
+        '--environment_config', '{}/beam/python:2.14.0.luma01'.format(get_docker_reg())
     ),
     'direct': (
         '--save_main_session',
@@ -66,6 +74,7 @@ def get_parser():
                         type=str,
                         default='direct',
                         choices=DEFAULTS.keys())
+    parser.add_argument('--subscription')
     return parser
 
 
