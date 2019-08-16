@@ -53,7 +53,7 @@ git checkout release-2.13.0
 Run the job server:
 
 ```bash
-./gradlew beam-runners-flink-1.8-job-server:runShadow -PflinkMasterUrl=localhost:8081
+./gradlew -p runners/flink/1.8/job-server runShadow -P flinkMasterUrl=localhost:8081
 ```
 
 Then:
@@ -145,6 +145,13 @@ I use a different virtual env for development vs testing stock beam.
 Note: Running this from a shell with a venv worked, but running the task from IntelliJ did not.
 
 ```
-./gradlew :sdks:python:build
+./gradlew :sdks:python:sdist
 pip install sdks/python/build/apache-beam-2.16.0.dev0.zip[gcp]
 ```
+
+linting
+
+```
+./gradlew :sdks:python:test-suites:tox:py2:lintPy27
+```
+
