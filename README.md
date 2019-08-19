@@ -155,3 +155,11 @@ linting
 ./gradlew :sdks:python:test-suites:tox:py2:lintPy27
 ```
 
+
+# Java Development
+
+Run via direct-runner:
+
+```bash
+rillbeam/java/run.sh PubSub
+```
