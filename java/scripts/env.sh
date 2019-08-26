@@ -9,11 +9,12 @@ case "$0" in
   *) SCRIPT_DIR="$WDIR/${0#./}";;
 esac
 SCRIPT_DIR="${SCRIPT_DIR%/*}"
+JAVA_DIR=`dirname $SCRIPT_DIR`
 
 docker run -it \
-  -v $SCRIPT_DIR/.repository:/root/.m2/repository \
-  -v $SCRIPT_DIR:/opt/app/java \
-  -v `dirname $SCRIPT_DIR`/.cred/render-pubsub.json:/opt/app/.cred/render-pubsub.json \
+  -v $JAVA_DIR/.repository:/root/.m2/repository \
+  -v $JAVA_DIR:/opt/app/java \
+  -v `dirname $JAVA_DIR`/.cred/render-pubsub.json:/opt/app/.cred/render-pubsub.json \
   --workdir /opt/app \
   --env GOOGLE_APPLICATION_CREDENTIALS=/opt/app/.cred/render-pubsub.json \
   maven:3-jdk-8 \

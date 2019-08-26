@@ -158,8 +158,25 @@ linting
 
 # Java Development
 
-Run via direct-runner:
+I've added `rillbeam/java/run.sh` helper to aid in compiling and submitting Java beam pipelines. This is executed via a maven docker container.
+
+Execute with direct-runner:
 
 ```bash
 rillbeam/java/run.sh PubSub
+```
+
+Execute via flink directly:
+
+```bash
+rillbeam/java/run.sh PubSub --runner=FlinkRunner --flinkMaster=host.docker.internal:8081 --filesToStage=target/PubSub-bundled-0.1.jar
+```
+
+> Note: Use of `host.docker.internal` is because run.sh runs a docker container which needs to talk to flink.
+ 
+*NOT WORKING / IN PROGRESS*
+Execute via flink via PortableRunner:
+
+```bash
+java/run.sh PubSub --runner=PortableRunner --jobEndpoint=host.docker.internal:8099 --filesToStage=target/PubSub-bundled-0.1.jar
 ```

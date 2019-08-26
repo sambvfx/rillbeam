@@ -67,11 +67,10 @@ def main(pipeline_options, args):
 
     (
         pipe
-        | 'PubSubInflow' >> ReadFromPubSub(subscription=subscription)
+        | 'PubSubInflow' >> ReadFromPubSub(subscription=subscription,
+                                           with_attributes=True)
         | 'RawFeed' >> Log(color=('white', ['dark']))
     )
-
-    import ipdb; ipdb.set_trace()
 
     result = pipe.run()  # type: PipelineResult
     time.sleep(10)
@@ -84,7 +83,7 @@ def main(pipeline_options, args):
     print
 
     publisher = pubsub_v1.PublisherClient()
-    publisher.publish(INPUT_TOPIC, data=b'test')
+    publisher.publish(INPUT_TOPIC, data=b'THIS IS A PUBSUBMESSAGE')
 
     try:
         result.wait_until_finish()
