@@ -30,10 +30,10 @@ As of this writing, apache_beam 2.14 is compatible with flink 1.8.
 
 Install and start [docker](https://docs.docker.com/v17.12/docker-for-mac/install/).
 
-Install flink 1.8:
+Install flink 1.8.0:
 
 ```bash
-brew install apache-flink
+brew install https://raw.github.com/Homebrew/homebrew-core/9312171d224f9ab2f32b57abea3f1c99d5fc4332/Formula/apache-flink.rb
 ```
 
 Start flink:
