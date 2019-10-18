@@ -51,7 +51,7 @@ DEFAULTS = {
         '--job_endpoint', 'localhost:8099',
         '--setup_file', './setup.py',
         '--environment_type', 'DOCKER',
-        '--environment_config', '{}/beam/python:2.15.0.luma02'.format(get_docker_reg())
+        '--environment_config', '{}/beam/python2.7_sdk:2.16.0.luma01'.format(get_docker_reg())
     ),
     'direct': (
         '--save_main_session',

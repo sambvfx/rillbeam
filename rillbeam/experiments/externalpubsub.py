@@ -63,12 +63,13 @@ def main(pipeline_options, args):
 
     pipe = beam.Pipeline(options=pipeline_options)
 
-    subscription = get_subscription(INPUT_TOPIC, 'pubsub-test')
+    subscription = get_subscription(INPUT_TOPIC, args.subscription)
 
     (
         pipe
         | 'PubSubInflow' >> ReadFromPubSub(subscription=subscription,
-                                           with_attributes=True)
+                                           with_attributes=True,
+                                           expansion_service='localhost:8097')
         | 'RawFeed' >> Log(color=('white', ['dark']))
     )
 

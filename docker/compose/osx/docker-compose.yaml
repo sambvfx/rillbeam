@@ -10,22 +10,22 @@ networks:
 
 services:
 
-#  jobserver:
-#    # This is to host the service:
-#    #   ./gradlew -p runners/flink/1.8/job-server runShadow -P flinkMasterUrl=localhost:8081
-#    image: ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.14.0.luma01
-#    command: "--flink-master-url=jobmanager:8081"
-#    networks:
-#      - backend
-#    ports:
-#      - "8098:8098"  # ArtifactStagingService
-#      - "8097:8097"  # Java ExpansionService
-#      - "8099:8099"  # JobService
-#    volumes:
-#      - /tmp/beam-artifact-staging:/tmp/beam-artifact-staging
+  jobserver:
+    # This is to host the service:
+    #   ./gradlew -p runners/flink/1.8/job-server runShadow -P flinkMasterUrl=localhost:8081
+    image: ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.16.0.luma01
+    command: "--flink-master-url=jobmanager:8081"
+    networks:
+      - backend
+    ports:
+      - "8098:8098"  # ArtifactStagingService
+      - "8097:8097"  # Java ExpansionService
+      - "8099:8099"  # JobService
+    volumes:
+      - /tmp/beam-artifact-staging:/tmp/beam-artifact-staging
 
   jobmanager:
-    image: flink:1.8
+    image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:1.8.2
     networks:
       - backend
     ports:
@@ -40,7 +40,7 @@ services:
       - JOB_MANAGER_RPC_ADDRESS=jobmanager
 
   taskmanager:
-    image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:1.8
+    image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:1.8.2
     depends_on:
       - jobmanager
     networks:

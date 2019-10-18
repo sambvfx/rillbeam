@@ -84,13 +84,13 @@ Flink requires pulling the python sdk image from a docker registry. At luma we u
 Build the python sdk container.
 
 ```bash
-./gradlew -p sdks/python/container docker -P docker-repository-root="${DOCKER_REGISTRY_URL}/beam" -P docker-tag=2.14.0.luma01
+./gradlew -p sdks/python/container docker -P docker-repository-root="${DOCKER_REGISTRY_URL}/beam" -P docker-tag=2.16.0.luma01
 ```
 
 Upload sdk python container to the registry.
 
 ```bash
-docker push ${DOCKER_REGISTRY_URL}/beam/python:2.14.0.luma01
+docker push ${DOCKER_REGISTRY_URL}/beam/python:2.16.0.luma01
 ```
 
 Build job-server container:
