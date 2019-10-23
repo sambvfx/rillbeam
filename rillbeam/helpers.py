@@ -35,6 +35,10 @@ def get_docker_reg():
     return 'localhost:5000'
 
 
+DOCKER_REGISTRY_URL = get_docker_reg()
+BEAM_VERSION = os.environ.get('BEAM_VERSION', 'release-2.16.0')
+
+
 DEFAULTS = {
     'dataflow': (
         '--save_main_session',
@@ -51,7 +55,8 @@ DEFAULTS = {
         '--job_endpoint', 'localhost:8099',
         '--setup_file', './setup.py',
         '--environment_type', 'DOCKER',
-        '--environment_config', '{}/beam/python2.7_sdk:2.16.0.luma01'.format(get_docker_reg())
+        '--environment_config', '{}/beam/python2.7_sdk:{}'.format(
+            DOCKER_REGISTRY_URL, BEAM_VERSION)
     ),
     'direct': (
         '--save_main_session',

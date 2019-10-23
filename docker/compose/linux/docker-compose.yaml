@@ -8,7 +8,7 @@ services:
   jobserver:
     # This is to host the service:
     #   ./gradlew :beam-runners-flink-1.8-job-server:runShadow -P flinkMasterUrl=localhost:8081
-    image: ${DOCKER_REGISTRY_URL}/beam/flink-job-server:2.13.0.luma01
+    image: ${DOCKER_REGISTRY_URL}/beam/flink-job-server:${BEAM_VERSION}
     command: "--flink-master-url=localhost:8081"
     # need use host networking for the SDK harness container to reach to taskmanager under localhost:<random-port>
     network_mode: "host"
@@ -16,7 +16,7 @@ services:
       - beam-artifacts-staging-volume:/tmp/beam-artifact-staging
 
   jobmanager:
-    image: flink:1.8
+    image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:${FLINK_VERSION}
     # need use host networking for the SDK harness container to reach to taskmanager under localhost:<random-port>
     network_mode: "host"
     command: jobmanager
@@ -24,7 +24,7 @@ services:
       - JOB_MANAGER_RPC_ADDRESS=localhost
 
   taskmanager:
-    image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:1.8
+    image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:${FLINK_VERSION}
     depends_on:
       - jobmanager
     # need use host networking for the SDK harness container to reach to taskmanager under localhost:<random-port>
