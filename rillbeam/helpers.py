@@ -64,7 +64,7 @@ DEFAULTS = {
     'local': (
         '--save_main_session',
         '--runner', 'PortableRunner',
-        '--job_endpoint', 'localhost:8199',
+        '--job_endpoint', 'localhost:8099',
         '--environment_type', python_urns.SUBPROCESS_SDK,
         '--environment_config',
         b'{} -m apache_beam.runners.worker.sdk_worker_main'.format(
