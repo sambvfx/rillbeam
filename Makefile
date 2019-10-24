@@ -1,3 +1,5 @@
+SHELL:=/bin/bash
+
 # ------------------------------------------------------------------------------
 # ARGS
 
@@ -38,7 +40,7 @@ denv-build:
 		--build-arg DOCKER_GID=`ls -ng /var/run/docker.sock | cut -f3 -d' '`
 
 
-denv: denv-build
+denv-run:
 	docker run --rm -it \
 		--net=host \
 		-v $(BEAM_ROOT):/opt/apache/beam \
@@ -52,6 +54,10 @@ denv: denv-build
 		--env BEAM_ROOT=/opt/apache/beam \
 		beam/denv:$(BEAM_VERSION)
 
+
+denv: denv-build denv-run
+
+# ------------------------------------------------------------------------------
 
 clean:
 	$(BEAM_ROOT)/gradlew clean -P disableSpotlessCheck=true
@@ -103,3 +109,32 @@ start:
 	BEAM_VERSION=$(BEAM_VERSION) \
 	FLINK_VERSION=$(FLINK_VERSION) \
 	docker-compose -f docker/compose/$(PLATFORM)/docker-compose.yaml up
+
+
+# ------------------------------------------------------------------------------
+# SETUP
+
+env:
+	if [[ -d .venv ]]; then \
+		echo "virtualenv .venv already exists"; \
+	else \
+		virtualenv .venv; \
+		source .venv/bin/activate; \
+		pip install -e .; \
+		pip install -e $(BEAM_ROOT)/sdks/python[gcp]; \
+	fi;
+
+
+protos: env
+	source .venv/bin/activate; \
+	python $(BEAM_ROOT)/sdks/python/gen_protos.py;
+
+
+job-server: env
+	source .venv/bin/activate; \
+	python -m apache_beam.runners.portability.local_job_service_main -p 8099;
+
+
+test-job: env
+	source .venv/bin/activate; \
+	python -m rillbeam.experiments.flowbased --defaults local;

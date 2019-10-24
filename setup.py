@@ -28,20 +28,6 @@ def version():
             return match.groups()[0]
 
 
-def requirements():
-    """
-    Sources install_requires from requirements.txt so we don't have to maintain
-    in two places.
-    """
-    results = []
-    for line in read('requirements.txt').split('\n'):
-        line = line.strip()
-        if line.startswith('#'):
-            continue
-        results.append(line.split(' ')[0].split('#')[0])
-    return results
-
-
 setup(
     name=PKG_NAME,
     version=version(),
@@ -51,8 +37,12 @@ setup(
     packages=find_packages(),
     # FIXME: including apache_beam in requirements causes flink to fail with:
     #  Received exit code 1 for command 'docker inspect -f {{.State.Running}} <uuid>'. stderr: Error: No such object: <uuid>
-    # install_requires=requirements(),
-    install_requires=['typing'],
+    install_requires=[
+        'google-cloud-pubsub',
+        'typing',
+        'termcolor',
+        'attrs',
+    ],
     extras_require={
         'tests': [
             'pytest',

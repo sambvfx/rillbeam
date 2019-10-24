@@ -1,5 +1,0 @@
-apache_beam[gcp]
-google-cloud-pubsub
-typing
-termcolor
-attrs
