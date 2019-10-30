@@ -24,7 +24,7 @@ def main(options):
         # | 'Gen' >> beam.Create(range(10))
         | 'Gen' >> GenerateSequence(
               start=1,
-              # stop=10,
+              stop=22,
               expansion_service='localhost:8097',
           )
         | 'Log' >> Log()
@@ -47,5 +47,6 @@ def main(options):
 
 if __name__ == '__main__':
     from rillbeam.helpers import get_options
-    pipeline_args, _ = get_options(__name__, None, 'streaming')
+    # pipeline_args, _ = get_options(__name__, None, 'streaming')
+    pipeline_args, _ = get_options(__name__, None)
     main(pipeline_args)
