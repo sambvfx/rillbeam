@@ -69,6 +69,17 @@ DEFAULTS = {
         '--environment_config',
         b'{} -m apache_beam.runners.worker.sdk_worker_main'.format(
             sys.executable.encode('ascii')),
+    ),
+    'rill': (
+        # '--save_main_session',
+        '--setup_file', './setup.py',
+        '--runner', 'PortableRunner',
+        '--job_endpoint', 'localhost:8099',
+        '--rill_job_endpoint', 'localhost:8500',
+        '--environment_type', python_urns.SUBPROCESS_SDK,
+        '--environment_config',
+        b'{} -m apache_beam.runners.worker.sdk_worker_main'.format(
+            sys.executable.encode('ascii')),
     )
 }
 
