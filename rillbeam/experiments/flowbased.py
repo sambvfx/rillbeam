@@ -5,15 +5,27 @@ import apache_beam as beam
 
 from rillbeam.transforms import SleepFn, Log
 
+try:
+    import rill.runner
+except ImportError:
+    runner = None
+else:
+    runner = rill.runner.RillRunner()
+
 
 def main(options):
-    pipe = beam.Pipeline(options=options)
+    from rillbeam.helpers import write_pipeline_text, write_pipeline_svg
+
+    pipe = beam.Pipeline(options=options, runner=runner)
     (
         pipe
         | 'Init' >> beam.Create(range(10))
         | 'Sleep' >> beam.ParDo(SleepFn(), duration=1.0)
         | 'Log' >> Log()
     )
+
+    write_pipeline_svg(pipe, __name__)
+
     result = pipe.run()
     result.wait_until_finish()
 
