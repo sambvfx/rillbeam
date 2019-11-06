@@ -4,7 +4,8 @@ SHELL:=/bin/bash
 # ARGS
 
 # Beam repo
-BEAM_ROOT:=$(if $(BEAM_ROOT),$(BEAM_ROOT),/Users/$(USER)/projects/beam)
+BEAM_ROOT:=$(if $(BEAM_ROOT),$(BEAM_ROOT),~/projects/beam)
+BEAM_ROOT:=$(shell python -c "import os; print(os.path.realpath(os.path.expandvars(os.path.expanduser('$(BEAM_ROOT)'))))")
 # Used for docker tags
 BEAM_VERSION:=$(if $(BEAM_VERSION),$(BEAM_VERSION),$(shell git --git-dir=${BEAM_ROOT}/.git branch | grep \* | cut -d ' ' -f2))
 # Specify the registry to upload containers to
@@ -59,11 +60,11 @@ denv: denv-build denv-run
 
 # ------------------------------------------------------------------------------
 
-clean:
+beam.clean:
 	$(BEAM_ROOT)/gradlew clean -P disableSpotlessCheck=true
 
 
-job-server:
+beam.job-server:
 	$(BEAM_ROOT)/gradlew -s -p runners/flink/1.8/job-server-container docker \
 	    -P docker-repository-root=$(DOCKER_REGISTRY_URL)/beam \
 	    -P docker-tag=$(BEAM_VERSION) \
@@ -72,7 +73,7 @@ job-server:
 	docker push $(DOCKER_REGISTRY_URL)/beam/flink-job-server:$(BEAM_VERSION)
 
 
-sdk_java:
+beam.sdk_java:
 	$(BEAM_ROOT)/gradlew -s -p sdks/java/container docker \
 	    -P docker-repository-root=$(DOCKER_REGISTRY_URL)/beam \
 	    -P docker-tag=$(BEAM_VERSION) \
@@ -81,7 +82,7 @@ sdk_java:
 	docker push $(DOCKER_REGISTRY_URL)/beam/java_sdk:$(BEAM_VERSION)
 
 
-sdk_python27:
+beam.sdk_python27:
 	$(BEAM_ROOT)/gradlew -s -p sdks/python/container/py2 docker \
 		-P docker-repository-root=$(DOCKER_REGISTRY_URL)/beam \
 		-P docker-tag=$(BEAM_VERSION) \
@@ -90,7 +91,7 @@ sdk_python27:
 	docker push $(DOCKER_REGISTRY_URL)/beam/python2.7_sdk:$(BEAM_VERSION)
 
 
-beam-build: job-server sdk_java sdk_python27
+beam-build: beam.job-server beam.sdk_java beam.sdk_python27
 
 
 # ------------------------------------------------------------------------------
