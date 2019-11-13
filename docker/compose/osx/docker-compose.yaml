@@ -21,8 +21,11 @@ services:
       - "8098:8098"  # ArtifactStagingService
       - "8097:8097"  # Java ExpansionService
       - "8099:8099"  # JobService
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/opt/app/.cred/render-pubsub.json
     volumes:
       - /tmp/beam-artifact-staging:/tmp/beam-artifact-staging
+      - ~/projects/rillbeam/.cred/render-pubsub.json:/opt/app/.cred/render-pubsub.json
 
   jobmanager:
     image: ${DOCKER_REGISTRY_URL}/beam/docker-flink:${FLINK_VERSION}
