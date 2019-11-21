@@ -5,17 +5,8 @@ import apache_beam as beam
 
 from rillbeam.transforms import SleepFn, Log
 
-runner = None
-try:
-    import rill.runner
-except ImportError:
-    print("Not using rill")
-else:
-    runner = rill.runner.RillRunner()
-    print("Using rill")
 
-
-def main(options):
+def main(options, runner=None):
     from rillbeam.helpers import write_pipeline_text, write_pipeline_svg
 
     pipe = beam.Pipeline(options=options, runner=runner)
@@ -26,7 +17,7 @@ def main(options):
         | 'Log' >> Log()
     )
 
-    write_pipeline_svg(pipe, __name__)
+    # write_pipeline_svg(pipe, __name__)
 
     result = pipe.run()
     result.wait_until_finish()
@@ -34,5 +25,9 @@ def main(options):
 
 if __name__ == '__main__':
     from rillbeam.helpers import get_options
-    pipeline_args, _ = get_options(__name__)
-    main(pipeline_args)
+    options, args = get_options(__name__)
+    runner = None
+    if args.defaults == 'rill':
+        import rill.runner
+        runner = rill.runner.RillRunner()
+    main(options, runner=runner)
