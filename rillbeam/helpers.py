@@ -74,8 +74,10 @@ DEFAULTS = {
         # '--save_main_session',
         '--setup_file', './setup.py',
         '--runner', 'PortableRunner',
-        '--job_endpoint', 'localhost:8099',
+        # '--job_endpoint', 'localhost:8099',
         '--rill_job_endpoint', 'localhost:8500',
+        # '--rill_job_endpoint', 'Chads-MacBook-Pro.local:8500',
+        '--no_run',
         '--environment_type', python_urns.SUBPROCESS_SDK,
         '--environment_config',
         b'{} -m apache_beam.runners.worker.sdk_worker_main'.format(

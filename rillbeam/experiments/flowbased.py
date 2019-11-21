@@ -5,12 +5,14 @@ import apache_beam as beam
 
 from rillbeam.transforms import SleepFn, Log
 
+runner = None
 try:
     import rill.runner
 except ImportError:
-    runner = None
+    print("Not using rill")
 else:
     runner = rill.runner.RillRunner()
+    print("Using rill")
 
 
 def main(options):
